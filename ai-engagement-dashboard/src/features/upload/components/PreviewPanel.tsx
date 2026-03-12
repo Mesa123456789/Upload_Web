@@ -66,9 +66,7 @@ export default function PreviewPanel() {
           </div>
         </div>
 
-        <button className="w-full bg-blue-600 text-white py-2 rounded">
-          Submit for Analysis
-        </button>
+
 
       </div>
     </Card>

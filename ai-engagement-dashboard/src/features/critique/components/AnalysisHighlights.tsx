@@ -10,19 +10,25 @@ export default function AnalysisHighlights({ highlights }: Props) {
 
       <h3 className="font-semibold">Analysis Highlights</h3>
 
-      <div className="flex gap-3">
-        <span className="bg-green-100 text-green-700 px-3 py-1 rounded text-sm">
+      <div className="flex flex-wrap gap-3">
+        <span className="bg-primary/10 text-primary px-4 py-1.5 rounded-full text-xs font-bold ring-1 ring-primary/20">
           Risk: {highlights.risk}
         </span>
-        <span className="bg-green-100 text-green-700 px-3 py-1 rounded text-sm">
+        <span className="bg-primary/10 text-primary px-4 py-1.5 rounded-full text-xs font-bold ring-1 ring-primary/20">
           Consistency: {highlights.consistency}
         </span>
       </div>
 
-      <div className="space-y-2 text-sm">
-        <div className="bg-green-50 p-3 rounded">{highlights.hook}</div>
-        <div className="bg-green-50 p-3 rounded">{highlights.reward}</div>
-        <div className="bg-green-50 p-3 rounded">{highlights.cta}</div>
+      <div className="space-y-3 text-sm">
+        <div className="bg-background-main/50 p-4 rounded-xl border border-primary/10 text-primary font-medium">
+          <span className="opacity-60 mr-2">✔</span> {highlights.hook}
+        </div>
+        <div className="bg-background-main/50 p-4 rounded-xl border border-primary/10 text-primary font-medium">
+          <span className="opacity-60 mr-2">✔</span> {highlights.reward}
+        </div>
+        <div className="bg-background-main/50 p-4 rounded-xl border border-primary/10 text-primary font-medium">
+          <span className="opacity-60 mr-2">✔</span> {highlights.cta}
+        </div>
       </div>
 
     </div>

@@ -28,13 +28,13 @@ export default function DiscrepancyGraph({ data, metrics }: Props) {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey="expected" stroke="#2563eb" />
-            <Line type="monotone" dataKey="observed" stroke="#f97316" />
+            <Line type="monotone" dataKey="expected" stroke="#1F4D3A" strokeWidth={3} dot={{ r: 4 }} />
+            <Line type="monotone" dataKey="observed" stroke="#f36f21" strokeWidth={3} dot={{ r: 4 }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-5 text-center mt-6 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-center mt-6 text-sm">
         {metrics.map((m) => (
           <div key={m.label}>
             <p className="font-semibold">{m.value}</p>

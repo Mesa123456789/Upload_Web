@@ -6,7 +6,7 @@ interface Props {
 
 export default function Card({ children }: Props) {
   return (
-    <div className="bg-white rounded-xl shadow p-6">
+    <div className="bg-background-card rounded-2xl shadow-sm border border-black/5 p-6">
       {children}
     </div>
   );

@@ -106,7 +106,7 @@ export default function UploadForm() {
                 />
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
 
                 <div className="flex-1">
                   <label

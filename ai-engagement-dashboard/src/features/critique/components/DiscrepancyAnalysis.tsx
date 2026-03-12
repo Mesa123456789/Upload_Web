@@ -10,7 +10,7 @@ export default function DiscrepancyAnalysis({
   observed,
 }: Props) {
   const renderFlow = (flow: FlowStep[]) => (
-    <div className="flex gap-2 text-xs">
+    <div className="flex flex-wrap gap-2 text-xs">
       {flow.map((step, i) => (
         <span
           key={i}
@@ -19,7 +19,7 @@ export default function DiscrepancyAnalysis({
               ? "bg-red-600"
               : step.variant === "warning"
               ? "bg-orange-500"
-              : "bg-blue-600"
+              : "bg-primary"
           }`}
         >
           {step.label}

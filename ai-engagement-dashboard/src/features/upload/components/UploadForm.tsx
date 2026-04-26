@@ -1,214 +1,106 @@
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 import Card from "../../../shared/components/Card";
 import Button from "../../../shared/components/Button";
+import Select from "../../../shared/components/Select";
 
-export default function UploadForm() {
-  const navigate = useNavigate();
+// กำหนดตัวเลือกจาก Constants
+const GENRE_OPTIONS = [
+  "RPG / Adventure",
+  "Action / Shooter",
+  "Casual / Puzzle",
+  "Simulation / Strategy"
+];
+
+const MONETIZATION_OPTIONS = [
+  "Ads-Supported (Rewarded/Interstitial)",
+  "In-App Purchases (IAP)",
+  "Hybrid Model (Ads + IAP)"
+];
+
+interface UploadFormProps {
+  onPreview: (formData: any) => void;
+}
+
+export default function UploadForm({ onPreview }: UploadFormProps) {
+  // สร้าง State สำหรับเก็บข้อมูลฟอร์ม
+  const [formData, setFormData] = useState({
+    title: "",
+    genre: "RPG / Adventure",
+    audience: "",
+    mechanic: "",
+    monetization: "Ads-Supported (Rewarded/Interstitial)"
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // ส่งข้อมูลกลับไปที่หน้าหลักเพื่อทำ Preview
+    onPreview(formData);
+  };
 
   return (
     <Card>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          navigate("/critique");
-        }}
-      >
-        <h2 className="text-xl font-semibold text-center mb-1">
-          Design Submission
-        </h2>
+      <form onSubmit={handleSubmit} className="space-y-5 p-2">
+        <div className="border-b pb-3 mb-2">
+          <h2 className="text-lg font-bold text-gray-800 uppercase tracking-wide">Project Context</h2>
+        </div>
 
-        <p className="text-center text-gray-500 text-sm mb-6">
-          Monetization & Engagement Intent
-        </p>
+        {/* Game Title */}
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Game Title</label>
+          <input 
+            type="text"
+            required
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all"
+            placeholder="e.g. Project Ethical Quest"
+            value={formData.title}
+            onChange={(e) => setFormData({...formData, title: e.target.value})}
+          />
+        </div>
 
-        <div className="space-y-6 text-sm">
+        {/* Genre & Monetization Selection */}
+        <div className="grid grid-cols-2 gap-4">
+          <Select 
+            label="Game Genre" 
+            options={GENRE_OPTIONS}
+            value={formData.genre}
+            onChange={(val) => setFormData({...formData, genre: val})}
+          />
+          <Select 
+            label="Monetization Strategy" 
+            options={MONETIZATION_OPTIONS}
+            value={formData.monetization}
+            onChange={(val) => setFormData({...formData, monetization: val})}
+          />
+        </div>
 
-          <p className="text-gray-500">
-            Define your design intent clearly before analysis.
-          </p>
+        {/* Target Audience */}
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Target Audience</label>
+          <input 
+            type="text"
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all"
+            placeholder="e.g. Competitive mobile players aged 18-25"
+            value={formData.audience}
+            onChange={(e) => setFormData({...formData, audience: e.target.value})}
+          />
+        </div>
 
-          {/* Project Context */}
-          <div>
-            <h3 className="font-semibold mb-3">Project Context</h3>
+        {/* Mechanics Description */}
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">Core Mechanics & Game Loop</label>
+          <textarea 
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all h-32 resize-none"
+            placeholder="Describe how the core gameplay interacts with monetization moments..."
+            value={formData.mechanic}
+            onChange={(e) => setFormData({...formData, mechanic: e.target.value})}
+          />
+        </div>
 
-            <div className="space-y-3">
-
-              <div>
-                <label
-                  htmlFor="playableType"
-                  className="block font-medium"
-                >
-                  Playable Ad Type:
-                </label>
-                <select
-                  id="playableType"
-                  name="playableType"
-                  className="w-full border rounded px-3 py-2 mt-1"
-                >
-                  <option>Install-driven playable ad</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="targetPlayer"
-                  className="block font-medium"
-                >
-                  Target Player:
-                </label>
-                <select
-                  id="targetPlayer"
-                  name="targetPlayer"
-                  className="w-full border rounded px-3 py-2 mt-1"
-                >
-                  <option>Casual mobile players</option>
-                </select>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Monetization Intent */}
-          <div>
-            <h3 className="font-semibold mb-3">Monetization Intent</h3>
-
-            <div className="space-y-3">
-
-              <div>
-                <label
-                  htmlFor="monetizationModel"
-                  className="block font-medium"
-                >
-                  Monetization Model:
-                </label>
-                <select
-                  id="monetizationModel"
-                  name="monetizationModel"
-                  className="w-full border rounded px-3 py-2 mt-1"
-                >
-                  <option>Reward-based motivation</option>
-                </select>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="ctaText"
-                  className="block font-medium"
-                >
-                  CTA Text:
-                </label>
-                <input
-                  id="ctaText"
-                  name="ctaText"
-                  type="text"
-                  defaultValue="Join the Adventure!"
-                  className="w-full border rounded px-3 py-2 mt-1"
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-
-                <div className="flex-1">
-                  <label
-                    htmlFor="ctaTiming"
-                    className="block font-medium"
-                  >
-                    CTA Timing:
-                  </label>
-                  <select
-                    id="ctaTiming"
-                    name="ctaTiming"
-                    className="w-full border rounded px-3 py-2 mt-1"
-                  >
-                    <option>After first reward</option>
-                  </select>
-                </div>
-
-                <div className="flex-1">
-                  <label
-                    htmlFor="placement"
-                    className="block font-medium"
-                  >
-                    Placement:
-                  </label>
-                  <select
-                    id="placement"
-                    name="placement"
-                    className="w-full border rounded px-3 py-2 mt-1"
-                  >
-                    <option>Bottom Center</option>
-                  </select>
-                </div>
-
-              </div>
-
-              <div>
-                <label
-                  htmlFor="pressureLevel"
-                  className="block font-medium"
-                >
-                  Pressure Level:
-                </label>
-                <select
-                  id="pressureLevel"
-                  name="pressureLevel"
-                  className="w-full border rounded px-3 py-2 mt-1"
-                >
-                  <option>Medium</option>
-                </select>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Engagement Loop */}
-          <div>
-            <h3 className="font-semibold mb-3">Engagement Loop</h3>
-            <div className="bg-gray-100 p-3 rounded space-y-2">
-              <p>Hook: Tap treasure chest</p>
-              <p>Core Interaction: Tap to collect coins</p>
-              <p>Reward Moment: +10 Coins Popup</p>
-              <p>CTA After 3 Loops</p>
-            </div>
-          </div>
-
-          {/* Ethical Self-Check */}
-          <div>
-            <h3 className="font-semibold mb-3">Ethical Self-Check</h3>
-            <div className="space-y-2">
-
-              <div className="flex items-center gap-2">
-                <input
-                  id="noForcedChoice"
-                  type="checkbox"
-                  defaultChecked
-                />
-                <label htmlFor="noForcedChoice">
-                  No forced choice
-                </label>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  id="ctaAligns"
-                  type="checkbox"
-                  defaultChecked
-                />
-                <label htmlFor="ctaAligns">
-                  CTA aligns with reward moment.
-                </label>
-              </div>
-
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full"
-          >
-            Submit for Analysis
+        {/* Submit Action */}
+        <div className="pt-2">
+          <Button type="submit" className="w-full py-3 shadow-lg shadow-[#9E76B4]/10">
+            Generate Analysis & Preview Report
           </Button>
-
         </div>
       </form>
     </Card>

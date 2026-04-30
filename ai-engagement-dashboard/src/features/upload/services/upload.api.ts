@@ -3,7 +3,7 @@ import { mockData } from "../../critique/data/mockData"; // เปลี่ย�
 export const submitDesign = async () => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      resolve(mockData); // ใช้ชื่อตัวแปรที่แก้ให้ตรงกัน
+      resolve(mockData); // 
     }, 1000);
   });
 };

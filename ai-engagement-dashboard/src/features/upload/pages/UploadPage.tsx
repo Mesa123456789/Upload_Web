@@ -72,13 +72,13 @@ export default function UploadPage() {
     setIsProcessing(true);
     try {
       const docRef = await addDoc(collection(db, "submissions"), submissionData);
-      console.log("✅ Saved to Firestore successfully! ID:", docRef.id);
+      console.log("Saved to Firestore successfully! ID:", docRef.id);
       
       setSubmissionData(null);
       navigate("/critique");
 
     } catch (error: any) {
-      console.error("❌ Firebase Error:", error);
+      console.error("Firebase Error:", error);
       alert(`ไม่สามารถบันทึกข้อมูลได้: ${error.message}`);
     } finally {
       setIsProcessing(false);
@@ -87,7 +87,6 @@ export default function UploadPage() {
 
   return (
     <PageContainer>
-      {/* 🚀 ย้าย Page Header ออกมาข้างนอก Grid แล้ว! */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Project Submission</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -95,7 +94,6 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* 🚀 ทีนี้ Card ฝั่งซ้ายกับขวาจะเริ่มที่ระดับเดียวกันเป๊ะ */}
       <div className="grid md:grid-cols-2 gap-8 items-start relative">
         <section className="flex flex-col gap-6">
           <UploadForm onPreview={handleFormPreview} />

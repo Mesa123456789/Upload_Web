@@ -15,7 +15,7 @@ export default function LoginPage() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       console.log("Login Success! User:", user.displayName, user.email);
-      navigate("/");
+      navigate("/invite");
     } catch (error) {
       console.error("Google Auth Error:", error);
       alert("ล็อกอินล้มเหลว กรุณาลองใหม่อีกครั้ง");

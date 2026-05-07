@@ -4,92 +4,129 @@ interface Props {
   data: DynamicSubmission;
 }
 
+type ListEntry = {
+  label?: string;
+  title?: string;
+  description?: string;
+  checked?: boolean;
+};
+
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function asList(value: unknown) {
+  return Array.isArray(value) ? (value as ListEntry[]) : [];
+}
+
 export default function DocumentTemplate({ data }: Props) {
   return (
     <>
-      {/* CSS สำหรับตอน print โดยเฉพาะ */}
       <style>{`
         @media print {
           @page {
             size: A4;
-            margin: 0;
+            margin: 14mm;
           }
+
+          html,
           body {
             margin: 0;
             padding: 0;
+            background: #ffffff !important;
           }
+
           #pdf-content {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 20mm;
+            width: 100% !important;
+            min-height: auto !important;
+            padding: 0 !important;
+            margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
-            page-break-after: avoid;
+          }
+
+          .pdf-section {
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
         }
       `}</style>
 
-      <div
+      <article
         id="pdf-content"
-        className="w-[210mm] bg-white p-[20mm] mx-auto text-gray-800 font-sans"
-        style={{
-          boxSizing: "border-box",
-          height: "297mm",          // ตายตัวเลย ไม่ใช้ min
-          position: "relative",     // ให้ footer absolute ได้
-          overflow: "hidden",       // ไม่ให้ล้น
-        }}
+        className="mx-auto w-[190mm] max-w-full bg-white p-[14mm] font-sans text-gray-800"
+        style={{ boxSizing: "border-box" }}
       >
-        {/* Header */}
-        <div className="border-b-4 border-[#9E76B4] pb-4 mb-6 flex justify-between items-end">
-          <div>
-            <h1 className="text-2xl font-bold uppercase text-gray-900">{data.gameTitle}</h1>
-            <p className="text-sm text-gray-500">Ethical Monetization Design Report</p>
+        <header className="mb-6 border-b-4 border-primary pb-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary-light">
+                AI Engagement Critique Report
+              </p>
+              <h1 className="mt-2 break-words text-2xl font-black leading-tight text-gray-900">
+                {data.gameTitle}
+              </h1>
+            </div>
+            <div className="text-left text-xs text-gray-500 sm:text-right">
+              <p>Date: {new Date(data.timestamp).toLocaleDateString()}</p>
+              {data.classCode && <p>Class: {data.classCode}</p>}
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-400">Date: {new Date(data.timestamp).toLocaleDateString()}</p>
-          </div>
-        </div>
+        </header>
 
-        {/* Blocks */}
-        <div className="space-y-6">
-          {data.blocks.map((block: any, i: number) => (
-            <section key={i} style={{ breakInside: "avoid" }}>
-              <h2 className="text-md font-bold text-[#9E76B4] border-l-4 border-[#9E76B4] pl-2 mb-3 uppercase tracking-wider">
+        <div className="grid gap-5">
+          {data.blocks.map((block, index) => (
+            <section key={`${block.title}-${index}`} className="pdf-section rounded-xl border border-gray-200 p-4">
+              <h2 className="mb-3 border-l-4 border-primary-light pl-3 text-sm font-black uppercase tracking-[0.14em] text-primary">
                 {block.title}
               </h2>
 
-              {block.type === 'key-value' && (
-                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
-                  {Object.entries(block.data).map(([k, v]: any) => (
-                    <div key={k}>
-                      <p className="text-[10px] text-gray-400 uppercase font-bold">{k}</p>
-                      <p className="font-medium text-gray-800">{v || "-"}</p>
+              {block.type === "key-value" && (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {Object.entries(asRecord(block.data)).map(([key, value]) => (
+                    <div key={key} className="rounded-lg bg-gray-50 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-gray-400">
+                        {key}
+                      </p>
+                      <p className="mt-1 break-words text-sm font-semibold leading-6 text-gray-800">
+                        {String(value || "-")}
+                      </p>
                     </div>
                   ))}
                 </div>
               )}
 
-              {block.type === 'header' && (
-                <div className="p-2 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {block.data}
+              {block.type === "header" && (
+                <p className="whitespace-pre-wrap break-words rounded-lg bg-gray-50 p-3 text-sm leading-7 text-gray-700">
+                  {String(block.data || "-")}
+                </p>
+              )}
+
+              {block.type === "analysis-box" && (
+                <div className="rounded-lg border border-green-100 bg-green-50/40 p-4">
+                  <p className="break-words text-sm italic leading-7 text-gray-700">
+                    {String(asRecord(block.data).summary || "-")}
+                  </p>
                 </div>
               )}
 
-              {block.type === 'analysis-box' && (
-                <div className="p-4 border-2 border-green-100 rounded-lg bg-green-50/30">
-                  <p className="italic text-gray-700 leading-relaxed text-sm">"{block.data.summary}"</p>
-                </div>
-              )}
-
-              {block.type === 'list' && (
-                <ul className="space-y-2 ml-2">
-                  {block.data.map((item: any, idx: number) => (
-                    <li key={idx} className="text-sm flex gap-3 items-start">
-                      <span className="text-[#9E76B4] font-bold mt-0.5">•</span>
-                      <span className="text-gray-700">
-                        {item.label || item.title}
+              {block.type === "list" && (
+                <ul className="grid gap-2">
+                  {asList(block.data).map((item, itemIndex) => (
+                    <li key={`${item.title || item.label}-${itemIndex}`} className="flex gap-3 rounded-lg bg-gray-50 p-3 text-sm">
+                      <span className="mt-0.5 font-black text-primary">
+                        {typeof item.checked === "boolean" ? (item.checked ? "✓" : "•") : "•"}
+                      </span>
+                      <span className="min-w-0 text-gray-700">
+                        <span className="block break-words font-semibold">
+                          {item.label || item.title || "-"}
+                        </span>
                         {item.description && (
-                          <span className="text-gray-500 block text-xs mt-0.5">{item.description}</span>
+                          <span className="mt-1 block break-words text-xs leading-5 text-gray-500">
+                            {item.description}
+                          </span>
                         )}
                       </span>
                     </li>
@@ -100,19 +137,10 @@ export default function DocumentTemplate({ data }: Props) {
           ))}
         </div>
 
-        {/* Footer — absolute ติดล่างสุดเสมอ */}
-        <div
-          className="text-[10px] text-gray-400 text-center border-t border-dashed pt-4"
-          style={{
-            position: "absolute",
-            bottom: "20mm",       // ห่างขอบล่างเท่า padding
-            left: "20mm",
-            right: "20mm",
-          }}
-        >
-          <p>This document was generated by Ethical Monetization Designer AI assistant. CMU Game Design Program.</p>
-        </div>
-      </div>
+        <footer className="mt-8 border-t border-dashed pt-4 text-center text-[10px] leading-5 text-gray-400">
+          This document was generated from the Critique page data. CMU Game Design Program.
+        </footer>
+      </article>
     </>
   );
 }

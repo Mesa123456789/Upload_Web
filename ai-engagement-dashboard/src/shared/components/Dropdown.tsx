@@ -26,7 +26,7 @@ export default function Dropdown({ trigger, children, align = "left" }: Dropdown
 
       {isOpen && (
         <div
-          className={`absolute z-20 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none ${
+          className={`absolute z-50 mt-2 w-48 max-w-[calc(100vw-2rem)] rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

@@ -12,11 +12,17 @@ export interface GameFormData {
   genre: string[];
   audience: string;
   mechanic: string;
+  playerGoal: string;
+  rewardMoment: string;
+  monetizationTiming: string;
+  pressurePoint: string;
+  platform: string;
   monetization: string[];
 }
 
 interface UploadFormProps {
   onPreview: (formData: GameFormData, isAIEnabled: boolean) => void;
+  isProcessing?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -50,12 +56,17 @@ const MONETIZATION_OPTIONS = [
 // 3. Main Component
 // ---------------------------------------------------------------------------
 
-export default function UploadForm({ onPreview }: UploadFormProps) {
+export default function UploadForm({ onPreview, isProcessing }: UploadFormProps) {
   const [formData, setFormData] = useState<GameFormData>({
     title: "",
     genre: ["RPG"],
     audience: "",
     mechanic: "",
+    playerGoal: "",
+    rewardMoment: "",
+    monetizationTiming: "",
+    pressurePoint: "",
+    platform: "",
     monetization: ["Ads"]
   });
 
@@ -193,6 +204,36 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
           />
         </div>
 
+        <div className="grid gap-5 md:grid-cols-2">
+          <div>
+            <label htmlFor="platform" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+              Platform / Device
+            </label>
+            <input
+              id="platform"
+              type="text"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all text-gray-800"
+              placeholder="e.g. Mobile, PC, Web, Console"
+              value={formData.platform}
+              onChange={(e) => setFormData({...formData, platform: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="player-goal" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+              Player Goal / Win Condition
+            </label>
+            <input
+              id="player-goal"
+              type="text"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all text-gray-800"
+              placeholder="e.g. Clear stages, collect cards, defeat boss"
+              value={formData.playerGoal}
+              onChange={(e) => setFormData({...formData, playerGoal: e.target.value})}
+            />
+          </div>
+        </div>
+
         {/* Textarea: Core Mechanics */}
         <div>
           <label htmlFor="core-mechanics" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
@@ -207,18 +248,61 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
           />
         </div>
 
+        <div className="grid gap-5 md:grid-cols-3">
+          <div>
+            <label htmlFor="reward-moment" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+              Reward Moment
+            </label>
+            <textarea
+              id="reward-moment"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all h-28 resize-none text-gray-800"
+              placeholder="When does the player receive rewards?"
+              value={formData.rewardMoment}
+              onChange={(e) => setFormData({...formData, rewardMoment: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="monetization-timing" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+              Monetization Timing
+            </label>
+            <textarea
+              id="monetization-timing"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all h-28 resize-none text-gray-800"
+              placeholder="When do ads, IAP, or offers appear?"
+              value={formData.monetizationTiming}
+              onChange={(e) => setFormData({...formData, monetizationTiming: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="pressure-point" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+              Player Pressure Points
+            </label>
+            <textarea
+              id="pressure-point"
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all h-28 resize-none text-gray-800"
+              placeholder="Any forced ads, repeated popups, timers, or skip options?"
+              value={formData.pressurePoint}
+              onChange={(e) => setFormData({...formData, pressurePoint: e.target.value})}
+            />
+          </div>
+        </div>
+
         {/* Action Buttons */}
         <div className="pt-6 border-t border-gray-100 flex items-center justify-end gap-3">
           <Button 
-            type="submit" 
+            type="submit"
+            disabled={isProcessing}
             className="py-2.5 px-6 shadow-md shadow-[#9E76B4]/20 font-semibold bg-[#9E76B4] hover:bg-[#85619A] text-white transition-colors"
           >
-            Preview & Submit
+            {isProcessing ? "Submitting..." : "Submit"}
           </Button>
 
           <div className="relative group flex items-center">
             <button 
               type="button" 
+              disabled={isProcessing}
               onClick={() => setIsAIEnabled(!isAIEnabled)}
               className={`w-10 h-10 rounded-xl border-2 transition-all duration-300 flex justify-center items-center ${
                 isAIEnabled 

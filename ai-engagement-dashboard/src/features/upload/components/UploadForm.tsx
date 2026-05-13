@@ -5,13 +5,18 @@ import Button from "../../../shared/components/Button";
 
 // ---------------------------------------------------------------------------
 // 1. Types & Interfaces
+//
+// Field names match the `projects` table columns so UploadPage can pass
+// them straight to projects.service without remapping.
 // ---------------------------------------------------------------------------
 
 export interface GameFormData {
   title: string;
   genre: string[];
-  audience: string;
-  mechanic: string;
+  platform: string[];          // new — maps to projects.platform[]
+  target_audience: string;     // renamed from `audience`
+  core_mechanic: string;       // renamed from `mechanic`
+  session_length_min: number | null; // new — maps to projects.session_length_min
   monetization: string[];
 }
 
@@ -39,6 +44,14 @@ const GENRE_OPTIONS = [
   { label: "Idle / Clicker", value: "Idle" }
 ];
 
+const PLATFORM_OPTIONS = [
+  { label: "iOS", value: "iOS" },
+  { label: "Android", value: "Android" },
+  { label: "PC", value: "PC" },
+  { label: "Console", value: "Console" },
+  { label: "Web", value: "Web" },
+];
+
 const MONETIZATION_OPTIONS = [
   { label: "Ads (Rewarded/Interstitial)", value: "Ads" },
   { label: "In-App Purchases (IAP)", value: "IAP" },
@@ -54,9 +67,11 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
   const [formData, setFormData] = useState<GameFormData>({
     title: "",
     genre: ["RPG"],
-    audience: "",
-    mechanic: "",
-    monetization: ["Ads"]
+    platform: ["Mobile"],        // default: mobile (most common for monetization class)
+    target_audience: "",
+    core_mechanic: "",
+    session_length_min: null,
+    monetization: ["Ads"],
   });
 
   const [isAIEnabled, setIsAIEnabled] = useState(true);
@@ -64,7 +79,7 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
   // State สำหรับเปิด/ปิด Show More ของ Genre
   const [isGenreExpanded, setIsGenreExpanded] = useState(false);
 
-  const toggleSelection = (field: 'genre' | 'monetization', value: string) => {
+  const toggleSelection = (field: 'genre' | 'platform' | 'monetization', value: string) => {
     setFormData((prev) => {
       const currentList = prev[field];
       if (currentList.includes(value)) {
@@ -152,6 +167,32 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
           </div>
         </div>
 
+        {/* Multi-Select: Platform (Pills UI) */}
+        <div>
+          <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+            Platform <span className="text-xs normal-case font-normal text-gray-400">(Select multiple)</span>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {PLATFORM_OPTIONS.map((opt) => {
+              const isSelected = formData.platform.includes(opt.value);
+              return (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => toggleSelection('platform', opt.value)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isSelected
+                      ? 'bg-[#9E76B4] text-white shadow-md shadow-[#9E76B4]/30'
+                      : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Multi-Select: Monetization (Pills UI) */}
         <div>
           <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
@@ -166,8 +207,8 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
                   key={opt.value}
                   onClick={() => toggleSelection('monetization', opt.value)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                    isSelected 
-                      ? 'bg-[#9E76B4] text-white shadow-md shadow-[#9E76B4]/30' 
+                    isSelected
+                      ? 'bg-[#9E76B4] text-white shadow-md shadow-[#9E76B4]/30'
                       : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                   }`}
                 >
@@ -183,13 +224,36 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
           <label htmlFor="target-audience" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
             Target Audience
           </label>
-          <input 
+          <input
             id="target-audience"
             type="text"
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all text-gray-800"
             placeholder="e.g. Competitive mobile players aged 18-25"
-            value={formData.audience}
-            onChange={(e) => setFormData({...formData, audience: e.target.value})}
+            value={formData.target_audience}
+            onChange={(e) => setFormData({...formData, target_audience: e.target.value})}
+          />
+        </div>
+
+        {/* Input: Session Length */}
+        <div>
+          <label htmlFor="session-length" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
+            Avg. Session Length <span className="text-xs normal-case font-normal text-gray-400">(minutes)</span>
+          </label>
+          <input
+            id="session-length"
+            type="number"
+            min={1}
+            max={999}
+            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all text-gray-800"
+            placeholder="e.g. 15"
+            value={formData.session_length_min ?? ""}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                // Convert to number or null if the field is cleared
+                session_length_min: e.target.value ? Number(e.target.value) : null,
+              })
+            }
           />
         </div>
 
@@ -198,12 +262,12 @@ export default function UploadForm({ onPreview }: UploadFormProps) {
           <label htmlFor="core-mechanics" className="block text-xs font-bold text-gray-500 uppercase mb-1.5 ml-1">
             Core Mechanics & Game Loop
           </label>
-          <textarea 
+          <textarea
             id="core-mechanics"
             className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#9E76B4]/20 focus:border-[#9E76B4] outline-none transition-all h-32 resize-none text-gray-800"
             placeholder="Describe how players progress and interact with monetization moments..."
-            value={formData.mechanic}
-            onChange={(e) => setFormData({...formData, mechanic: e.target.value})}
+            value={formData.core_mechanic}
+            onChange={(e) => setFormData({...formData, core_mechanic: e.target.value})}
           />
         </div>
 

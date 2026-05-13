@@ -1,43 +1,82 @@
 // ---------------------------------------------------------------------------
-// UploadPage.tsx — Step 1: Setup
+// SetupPage.tsx — Student Step 1: Game Info Setup
 //
-// What changed from the old version:
-//   - Removed Firebase imports (addDoc, collection, db, auth)
-//   - Now uses projects.service.createProject() → saves to Supabase
-//   - Gets student_id from useAuth() instead of auth.currentUser
-//   - course_id is hardcoded as TODO until course selector UI is built
-//   - Form data shape now matches GameFormData (renamed fields)
+// Route: /project/setup
+//
+// This is the entry point of the student flow. The student fills in basic
+// game info here, then moves to Step 2 (Build — Ads + IAP config).
+//
+// Reuses UploadForm (from the old /upload page) which already connects
+// to createProject() in projects.service. After confirm, we navigate to
+// /project/build passing the new project id via router state.
 // ---------------------------------------------------------------------------
 
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import PageContainer from "../../../app/layout/PageContainer";
-import UploadForm from "../components/UploadForm";
-import PreviewPanel from "../components/PreviewPanel";
-import PreviewModal from "../components/PreviewModal";
+import UploadForm from "../../upload/components/UploadForm";
+import PreviewPanel from "../../upload/components/PreviewPanel";
+import PreviewModal from "../../upload/components/PreviewModal";
 
 import { useAuth } from "../../auth/context/AuthContext";
 import { createProject } from "../../projects/services/projects.service";
-import type { GameFormData } from "../components/UploadForm";
-import type { DynamicSubmission } from "../types/submission";
+import type { GameFormData } from "../../upload/components/UploadForm";
+import type { DynamicSubmission } from "../../upload/types/submission";
 import { mockData } from "../../critique/data/mockData";
 
 // ---------------------------------------------------------------------------
-// TODO: Replace this with a real course selector once courses UI is built.
-// For now, every project is placed into this hardcoded course id.
-// This constant makes it easy to find and replace later.
+// TODO: Replace with real course selector once courses UI is built.
 // ---------------------------------------------------------------------------
 const TEMP_COURSE_ID = "00000000-0000-0000-0000-000000000001";
 
-export default function UploadPage() {
-  const { user } = useAuth(); // get the logged-in user from AuthContext
+// Step indicator shown at the top of each step page
+function StepIndicator({ current }: { current: number }) {
+  const steps = ["Setup", "Build", "Guardrail", "Output"];
+  return (
+    <div className="flex items-center gap-2 mb-6">
+      {steps.map((label, i) => {
+        const step = i + 1;
+        const isActive = step === current;
+        const isDone = step < current;
+        return (
+          <div key={label} className="flex items-center gap-2">
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                isActive
+                  ? "bg-[#9E76B4] text-white"
+                  : isDone
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-100 text-gray-400"
+              }`}
+            >
+              {isDone ? "✓" : step}
+            </div>
+            <span
+              className={`text-sm font-medium ${
+                isActive ? "text-gray-800" : "text-gray-400"
+              }`}
+            >
+              {label}
+            </span>
+            {i < steps.length - 1 && (
+              <div className="w-8 h-px bg-gray-200 mx-1" />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function SetupPage() {
+  const { user } = useAuth();
   const [submissionData, setSubmissionData] = useState<DynamicSubmission | null>(null);
   const [pendingFormData, setPendingFormData] = useState<GameFormData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const navigate = useNavigate();
 
-  // Build a DynamicSubmission for the PreviewModal (display only, not what we save to DB)
+  // Build a DynamicSubmission for the preview modal (display only — not what we save)
   const prepareDynamicData = (formData: GameFormData, isAIEnabled: boolean): DynamicSubmission => {
     const baseBlocks: any[] = [
       {
@@ -87,9 +126,8 @@ export default function UploadPage() {
   };
 
   const handleFormPreview = (formData: GameFormData, isAIEnabled: boolean) => {
-    const dynamicData = prepareDynamicData(formData, isAIEnabled);
-    setSubmissionData(dynamicData);
-    setPendingFormData(formData); // keep raw form data for the actual DB insert
+    setSubmissionData(prepareDynamicData(formData, isAIEnabled));
+    setPendingFormData(formData);
   };
 
   const handleConfirmSubmission = async () => {
@@ -98,8 +136,8 @@ export default function UploadPage() {
     setIsProcessing(true);
     try {
       const { data, error } = await createProject({
-        course_id: TEMP_COURSE_ID,        // TODO: replace with real course selector
-        student_id: user.id,              // from Supabase auth — matches profiles.id
+        course_id: TEMP_COURSE_ID,
+        student_id: user.id,
         title: pendingFormData.title,
         genre: pendingFormData.genre,
         platform: pendingFormData.platform,
@@ -110,15 +148,15 @@ export default function UploadPage() {
       });
 
       if (error) {
-        // If RLS blocks the insert, error message will say "permission denied" or similar
         alert(`ไม่สามารถบันทึกข้อมูลได้: ${error}`);
         return;
       }
 
-      console.log("Saved to Supabase. Project ID:", data?.id);
       setSubmissionData(null);
       setPendingFormData(null);
-      navigate("/critique");
+
+      // Pass project id to the next step via router state
+      navigate("/project/build", { state: { projectId: data?.id } });
     } finally {
       setIsProcessing(false);
     }
@@ -126,10 +164,14 @@ export default function UploadPage() {
 
   return (
     <PageContainer>
+      <StepIndicator current={1} />
+
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Project Submission</h1>
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+          Step 1 — Project Setup
+        </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Provide your game design context. Choose whether to enable AI analysis for ethical review.
+          Fill in your game info. This sets the context for monetization analysis.
         </p>
       </div>
 
@@ -137,7 +179,6 @@ export default function UploadPage() {
         <section className="flex flex-col gap-6">
           <UploadForm onPreview={handleFormPreview} />
         </section>
-
         <section className="sticky top-8">
           <PreviewPanel />
         </section>

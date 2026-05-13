@@ -476,10 +476,10 @@ export default function OutputPage() {
 
           <button
             type="button"
-            onClick={() => navigate("/project/new")}
+            onClick={() => navigate("/dashboard")}
             className="px-5 py-2.5 rounded-xl bg-gray-800 hover:bg-gray-700 text-white text-sm font-semibold transition-colors"
           >
-            Start New Project
+            Back to Dashboard
           </button>
         </div>
       </div>

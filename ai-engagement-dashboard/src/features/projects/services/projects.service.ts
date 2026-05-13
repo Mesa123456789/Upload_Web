@@ -165,6 +165,29 @@ export async function listCourseProjects(courseId: string): Promise<{
   return { data: (data as Project[]) ?? [], error: null };
 }
 
+// ---------------------------------------------------------------------------
+// listProjectsByCourseAndOwner — SELECT student's projects in a specific course
+// Used by Student Dashboard to show projects per course
+// ---------------------------------------------------------------------------
+export async function listProjectsByCourseAndOwner(
+  courseId: string,
+  ownerId: string
+): Promise<{ data: Project[]; error: string | null }> {
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("course_id", courseId)
+    .eq("owner_id", ownerId)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("[projects.service] listProjectsByCourseAndOwner error:", error);
+    return { data: [], error: error.message };
+  }
+
+  return { data: (data as Project[]) ?? [], error: null };
+}
+
 // ===========================================================================
 // ADS CONFIG
 // ===========================================================================

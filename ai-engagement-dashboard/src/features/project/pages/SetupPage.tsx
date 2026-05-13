@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import PageContainer from "../../../app/layout/PageContainer";
 import Card from "../../../shared/components/Card";
@@ -107,6 +107,9 @@ export default function SetupPage() {
   const { user } = useAuth();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  // courseId passed from Dashboard as ?courseId=<uuid>
+  const [searchParams] = useSearchParams();
+  const courseId = searchParams.get("courseId");
 
   const [form, setForm] = useState<SetupFormValues>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(!!projectId); // true only when editing
@@ -192,7 +195,7 @@ export default function SetupPage() {
         // Creating new project
         const { data, error } = await createProject({
           owner_id: user.id,
-          course_id: null, // personal project for now
+          course_id: courseId, // from ?courseId= search param (null if not provided)
           title: form.title,
           genre: form.genre,
           platform: form.platform,

@@ -33,13 +33,39 @@
 //   can re-fetch from Supabase on mount.
 // ---------------------------------------------------------------------------
 
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, Outlet, useRouteError } from "react-router-dom";
+
+// ---------------------------------------------------------------------------
+// ErrorBoundary — fallback UI when a route throws an unhandled error
+// ---------------------------------------------------------------------------
+function RouterErrorBoundary() {
+  const error = useRouteError() as { status?: number; statusText?: string; message?: string } | undefined;
+  const status = error?.status ?? 500;
+  const message =
+    error?.statusText ?? error?.message ?? "An unexpected error occurred.";
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
+      <div className="text-center space-y-3 max-w-sm px-4">
+        <p className="text-5xl font-bold text-gray-200">{status}</p>
+        <p className="text-sm text-gray-500">{message}</p>
+        <a
+          href="/"
+          className="inline-block mt-2 text-sm text-[#9E76B4] hover:underline"
+        >
+          Go back home
+        </a>
+      </div>
+    </div>
+  );
+}
 
 // Auth pages
 import LoginPage from "../features/auth/pages/LoginPage";
 import AuthCallbackPage from "../features/auth/pages/AuthCallbackPage";
 
 // Student pages
+import StudentDashboardPage from "../features/student/pages/StudentDashboardPage";
 import SetupPage from "../features/project/pages/SetupPage";
 import BuildPage from "../features/project/pages/BuildPage";
 import GuardrailPage from "../features/project/pages/GuardrailPage";
@@ -55,113 +81,132 @@ import ProtectedRoute from "./ProtectedRoute";
 import RoleRoute from "./RoleRoute";
 
 export const router = createBrowserRouter([
-  // -------------------------------------------------------------------------
-  // Public routes
-  // -------------------------------------------------------------------------
-  { path: "/login", element: <LoginPage /> },
   {
-    path: "/auth/callback",
-    element: <AuthCallbackPage />,
-  },
+    // Root layout route — errorElement here catches errors from all child routes
+    element: <Outlet />,
+    errorElement: <RouterErrorBoundary />,
+    children: [
+      // -----------------------------------------------------------------------
+      // Public routes
+      // -----------------------------------------------------------------------
+      { path: "/login", element: <LoginPage /> },
+      {
+        path: "/auth/callback",
+        element: <AuthCallbackPage />,
+      },
 
-  // -------------------------------------------------------------------------
-  // Root redirect — "/" sends users to their role-specific home
-  // -------------------------------------------------------------------------
-  {
-    path: "/",
-    element: (
-      <ProtectedRoute>
-        <RoleRedirect />
-      </ProtectedRoute>
-    ),
-  },
+      // -----------------------------------------------------------------------
+      // Root redirect — "/" sends users to their role-specific home
+      // -----------------------------------------------------------------------
+      {
+        path: "/",
+        element: (
+          <ProtectedRoute>
+            <RoleRedirect />
+          </ProtectedRoute>
+        ),
+      },
 
-  // -------------------------------------------------------------------------
-  // Student routes
-  // -------------------------------------------------------------------------
+      // -----------------------------------------------------------------------
+      // Student dashboard
+      // -----------------------------------------------------------------------
+      {
+        path: "/dashboard",
+        element: (
+          <ProtectedRoute>
+            <StudentDashboardPage />
+          </ProtectedRoute>
+        ),
+      },
 
-  // Step 1 — new project (no projectId yet)
-  {
-    path: "/project/new",
-    element: (
-      <ProtectedRoute>
-        <SetupPage />
-      </ProtectedRoute>
-    ),
-  },
+      // -----------------------------------------------------------------------
+      // Student routes
+      // -----------------------------------------------------------------------
 
-  // Step 1 — edit existing project setup
-  {
-    path: "/project/:projectId/setup",
-    element: (
-      <ProtectedRoute>
-        <SetupPage />
-      </ProtectedRoute>
-    ),
-  },
+      // Step 1 — new project (no projectId yet)
+      {
+        path: "/project/new",
+        element: (
+          <ProtectedRoute>
+            <SetupPage />
+          </ProtectedRoute>
+        ),
+      },
 
-  // Step 2 — Ads + IAP config
-  {
-    path: "/project/:projectId/build",
-    element: (
-      <ProtectedRoute>
-        <BuildPage />
-      </ProtectedRoute>
-    ),
-  },
+      // Step 1 — edit existing project setup
+      {
+        path: "/project/:projectId/setup",
+        element: (
+          <ProtectedRoute>
+            <SetupPage />
+          </ProtectedRoute>
+        ),
+      },
 
-  // Step 3 — AI Guardrail review
-  {
-    path: "/project/:projectId/guardrail",
-    element: (
-      <ProtectedRoute>
-        <GuardrailPage />
-      </ProtectedRoute>
-    ),
-  },
+      // Step 2 — Ads + IAP config
+      {
+        path: "/project/:projectId/build",
+        element: (
+          <ProtectedRoute>
+            <BuildPage />
+          </ProtectedRoute>
+        ),
+      },
 
-  // Step 4 — Output + export
-  {
-    path: "/project/:projectId/output",
-    element: (
-      <ProtectedRoute>
-        <OutputPage />
-      </ProtectedRoute>
-    ),
-  },
+      // Step 3 — AI Guardrail review
+      {
+        path: "/project/:projectId/guardrail",
+        element: (
+          <ProtectedRoute>
+            <GuardrailPage />
+          </ProtectedRoute>
+        ),
+      },
 
-  // -------------------------------------------------------------------------
-  // Instructor routes
-  // -------------------------------------------------------------------------
-  {
-    path: "/instructor/dashboard",
-    element: (
-      <ProtectedRoute>
-        <RoleRoute allowed={["instructor"]}>
-          <InstructorDashboardPage />
-        </RoleRoute>
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: "/instructor/courses",
-    element: (
-      <ProtectedRoute>
-        <RoleRoute allowed={["instructor"]}>
-          <InstructorCoursesPage />
-        </RoleRoute>
-      </ProtectedRoute>
-    ),
-  },
-  {
-    path: "/instructor/projects",
-    element: (
-      <ProtectedRoute>
-        <RoleRoute allowed={["instructor"]}>
-          <InstructorProjectsPage />
-        </RoleRoute>
-      </ProtectedRoute>
-    ),
+      // Step 4 — Output + export
+      {
+        path: "/project/:projectId/output",
+        element: (
+          <ProtectedRoute>
+            <OutputPage />
+          </ProtectedRoute>
+        ),
+      },
+
+      // -----------------------------------------------------------------------
+      // Instructor routes
+      // -----------------------------------------------------------------------
+      {
+        path: "/instructor/dashboard",
+        element: (
+          <ProtectedRoute>
+            <RoleRoute allowed={["instructor"]}>
+              <InstructorDashboardPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/instructor/courses",
+        element: (
+          <ProtectedRoute>
+            <RoleRoute allowed={["instructor"]}>
+              <InstructorCoursesPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "/instructor/projects",
+        element: (
+          <ProtectedRoute>
+            <RoleRoute allowed={["instructor"]}>
+              <InstructorProjectsPage />
+            </RoleRoute>
+          </ProtectedRoute>
+        ),
+      },
+    ],
   },
 ]);
 
@@ -186,6 +231,6 @@ function RoleRedirect() {
     return <Navigate to="/instructor/dashboard" replace />;
   }
 
-  // Default: student (and any unknown role) goes to new project
-  return <Navigate to="/project/new" replace />;
+  // Default: student (and any unknown role) goes to student dashboard
+  return <Navigate to="/dashboard" replace />;
 }

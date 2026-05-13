@@ -63,19 +63,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Step 1: read the current session immediately (already in localStorage)
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
+    // Step 1: read the current session immediately (already in localStorage).
+    // Always call setLoading(false) in the finally block so the spinner stops
+    // even when getSession() rejects (e.g. invalid key, network error).
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
 
-      // If we have a user, also fetch their profile to get `role`
-      if (currentUser) {
-        const p = await fetchProfile(currentUser.id);
-        setProfile(p);
-      }
-
-      setLoading(false); // done — safe to render routes now
-    });
+        // If we have a user, also fetch their profile to get `role`
+        if (currentUser) {
+          const p = await fetchProfile(currentUser.id);
+          setProfile(p);
+        }
+      })
+      .catch((err) => {
+        // Session check failed — treat as logged-out, log for debugging
+        console.error("[AuthContext] getSession error:", err);
+      })
+      .finally(() => {
+        setLoading(false); // always unblock the UI — success or failure
+      });
 
     // Step 2: subscribe to future auth changes (login, logout, token refresh)
     const {

@@ -16,7 +16,7 @@ import { supabase } from "../../../lib/supabase";
 // Resolve the home path based on profile role
 function getHomeByRole(role: string | undefined | null): string {
   if (role === "instructor") return "/instructor/dashboard";
-  return "/project/setup"; // default for student and any unknown role
+  return "/project/new"; // default for student and any unknown role
 }
 
 export default function AuthCallbackPage() {

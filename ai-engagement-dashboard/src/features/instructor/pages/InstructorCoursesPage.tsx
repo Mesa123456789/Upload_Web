@@ -5,8 +5,8 @@
 //
 // Features:
 //   - List all courses for the logged-in instructor
-//   - Create a new course via a simple inline form
-//   - Shows published vs draft status
+//   - Create a new course via an inline form (requires invite_code)
+//   - Shows active vs inactive status (is_active, not is_published)
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -32,18 +32,21 @@ function CourseCard({ course }: { course: Course }) {
           {course.description && (
             <p className="text-sm text-gray-500 mt-1 line-clamp-2">{course.description}</p>
           )}
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-gray-400 mt-2 font-mono">
+            Code: <span className="font-semibold text-gray-600">{course.invite_code}</span>
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
             Created {new Date(course.created_at).toLocaleDateString()}
           </p>
         </div>
         <span
           className={`shrink-0 px-2.5 py-1 rounded-full text-xs font-semibold ${
-            course.is_published
+            course.is_active
               ? "bg-green-50 text-green-600"
               : "bg-gray-100 text-gray-500"
           }`}
         >
-          {course.is_published ? "Published" : "Draft"}
+          {course.is_active ? "Active" : "Inactive"}
         </span>
       </div>
     </Card>
@@ -65,6 +68,7 @@ export default function InstructorCoursesPage() {
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newInviteCode, setNewInviteCode] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -88,7 +92,7 @@ export default function InstructorCoursesPage() {
 
   async function handleCreateCourse(e: React.FormEvent) {
     e.preventDefault();
-    if (!profile?.id || !newTitle.trim()) return;
+    if (!profile?.id || !newTitle.trim() || !newInviteCode.trim()) return;
 
     setCreating(true);
     setCreateError(null);
@@ -97,7 +101,8 @@ export default function InstructorCoursesPage() {
       instructor_id: profile.id,
       title: newTitle.trim(),
       description: newDescription.trim() || null,
-      is_published: false, // always start as draft
+      invite_code: newInviteCode.trim().toUpperCase(),
+      is_active: true,
     });
 
     if (err || !created) {
@@ -106,10 +111,10 @@ export default function InstructorCoursesPage() {
       return;
     }
 
-    // Prepend the new course to the list (newest first) and reset form
     setCourses((prev) => [created, ...prev]);
     setNewTitle("");
     setNewDescription("");
+    setNewInviteCode("");
     setShowForm(false);
     setCreating(false);
   }
@@ -121,7 +126,7 @@ export default function InstructorCoursesPage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Courses</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Manage your courses and enrolled students.
+            Manage your courses and student enrollment.
           </p>
         </div>
         <button
@@ -154,6 +159,24 @@ export default function InstructorCoursesPage() {
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#9E76B4]/40"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                Invite Code *{" "}
+                <span className="text-xs normal-case font-normal text-gray-400">
+                  (students use this to enroll)
+                </span>
+              </label>
+              <input
+                type="text"
+                value={newInviteCode}
+                onChange={(e) => setNewInviteCode(e.target.value)}
+                placeholder="e.g. DG401-A"
+                required
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#9E76B4]/40 font-mono"
+              />
+            </div>
+
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
                 Description
@@ -175,7 +198,7 @@ export default function InstructorCoursesPage() {
           <div className="mt-4 flex gap-3">
             <button
               type="submit"
-              disabled={creating || !newTitle.trim()}
+              disabled={creating || !newTitle.trim() || !newInviteCode.trim()}
               className="px-4 py-2 rounded-lg bg-[#9E76B4] text-white text-sm font-semibold hover:bg-[#8A5EA0] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {creating ? "Creating..." : "Create Course"}
@@ -196,7 +219,7 @@ export default function InstructorCoursesPage() {
         </div>
       )}
 
-      {/* Course list */}
+      {/* Empty state */}
       {!loading && !error && courses.length === 0 && (
         <div className="bg-gray-50 border border-gray-100 rounded-xl p-8 text-center">
           <p className="text-sm text-gray-500">You haven't created any courses yet.</p>
@@ -204,6 +227,7 @@ export default function InstructorCoursesPage() {
         </div>
       )}
 
+      {/* Course list */}
       {!loading && !error && courses.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {courses.map((course) => (

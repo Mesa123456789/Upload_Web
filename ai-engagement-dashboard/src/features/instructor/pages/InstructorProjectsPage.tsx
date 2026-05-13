@@ -6,7 +6,7 @@
 // Features:
 //   - Course dropdown to filter projects by course
 //   - Lists all projects for the selected course
-//   - Shows genre, platform, mechanic, monetization details
+//   - Shows genre, platform, mechanic, current step info
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -21,13 +21,18 @@ import PageContainer from "../../../app/layout/PageContainer";
 // ---------------------------------------------------------------------------
 
 function ProjectTableRow({ project }: { project: Project }) {
+  const stepLabels = ["", "Setup", "Build", "Guardrail", "Output"];
   return (
     <tr className="hover:bg-gray-50 transition-colors">
       <td className="px-6 py-4 text-gray-700 font-medium">{project.title}</td>
-      <td className="px-6 py-4 text-gray-500 text-xs">{project.genre.join(", ") || "—"}</td>
-      <td className="px-6 py-4 text-gray-500 text-xs">{project.platform.join(", ") || "—"}</td>
+      <td className="px-6 py-4 text-gray-500 text-xs">{(project.genre ?? []).join(", ") || "—"}</td>
+      <td className="px-6 py-4 text-gray-500 text-xs">{(project.platform ?? []).join(", ") || "—"}</td>
       <td className="px-6 py-4 text-gray-500 text-xs">{project.core_mechanic ?? "—"}</td>
-      <td className="px-6 py-4 text-gray-500 text-xs">{project.monetization.join(", ") || "—"}</td>
+      <td className="px-6 py-4 text-gray-500 text-xs">
+        <span className="px-2 py-0.5 bg-[#9E76B4]/10 text-[#7B5C8F] rounded-full font-medium">
+          Step {project.current_step}: {stepLabels[project.current_step]}
+        </span>
+      </td>
       <td className="px-6 py-4 text-gray-400 text-xs">
         {new Date(project.created_at).toLocaleDateString()}
       </td>
@@ -42,20 +47,17 @@ function ProjectTableRow({ project }: { project: Project }) {
 export default function InstructorProjectsPage() {
   const { profile } = useAuth();
 
-  // Courses state — populate the dropdown
   const [courses, setCourses] = useState<Course[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
   const [coursesError, setCoursesError] = useState<string | null>(null);
 
-  // Selected course id from dropdown — empty string = none selected
   const [selectedCourseId, setSelectedCourseId] = useState<string>("");
 
-  // Projects state — populated when a course is selected
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
 
-  // Step 1: load courses list on mount
+  // Load courses on mount
   useEffect(() => {
     if (!profile?.id) return;
 
@@ -68,7 +70,6 @@ export default function InstructorProjectsPage() {
         setCoursesError(error);
       } else {
         setCourses(data);
-        // Auto-select the first course if available
         if (data.length > 0) {
           setSelectedCourseId(data[0].id);
         }
@@ -79,7 +80,7 @@ export default function InstructorProjectsPage() {
     loadCourses();
   }, [profile?.id]);
 
-  // Step 2: load projects whenever selectedCourseId changes
+  // Load projects when selected course changes
   useEffect(() => {
     if (!selectedCourseId) {
       setProjects([]);
@@ -106,7 +107,6 @@ export default function InstructorProjectsPage() {
 
   return (
     <PageContainer>
-      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 tracking-tight">All Projects</h1>
         <p className="text-sm text-gray-500 mt-1">
@@ -114,7 +114,6 @@ export default function InstructorProjectsPage() {
         </p>
       </div>
 
-      {/* Error loading courses */}
       {coursesError && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-sm text-red-700">
           {coursesError}
@@ -134,7 +133,7 @@ export default function InstructorProjectsPage() {
           >
             {courses.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.title} {c.is_published ? "" : "(Draft)"}
+                {c.title} {!c.is_active ? "(Inactive)" : ""}
               </option>
             ))}
           </select>
@@ -149,7 +148,6 @@ export default function InstructorProjectsPage() {
         </div>
       )}
 
-      {/* Loading courses */}
       {coursesLoading && (
         <p className="text-sm text-gray-400">Loading courses...</p>
       )}
@@ -166,24 +164,20 @@ export default function InstructorProjectsPage() {
             )}
           </div>
 
-          {/* Projects loading */}
           {projectsLoading && (
             <p className="px-6 py-6 text-sm text-gray-400">Loading projects...</p>
           )}
 
-          {/* Projects error */}
           {projectsError && (
             <div className="px-6 py-4 text-sm text-red-600">{projectsError}</div>
           )}
 
-          {/* Empty state */}
           {!projectsLoading && !projectsError && projects.length === 0 && (
             <p className="px-6 py-8 text-sm text-gray-400">
               No projects in this course yet.
             </p>
           )}
 
-          {/* Table */}
           {!projectsLoading && !projectsError && projects.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -193,7 +187,7 @@ export default function InstructorProjectsPage() {
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Genre</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Platform</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Core Mechanic</th>
-                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Monetization</th>
+                    <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Progress</th>
                     <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Created</th>
                   </tr>
                 </thead>

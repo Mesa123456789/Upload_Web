@@ -1,7 +1,15 @@
-import { useRef, useEffect, useState } from "react";
+// ---------------------------------------------------------------------------
+// CritiquePage.tsx — Legacy page (not used in current router)
+//
+// This page was part of the original "AI Form Analysis" codebase.
+// It has been superseded by the 4-step EMD flow (Setup → Build → Guardrail → Output).
+//
+// Firebase has been removed. This file is kept for reference only.
+// The route /critique is no longer registered in router.tsx.
+// ---------------------------------------------------------------------------
+
+import { useRef } from "react";
 import { useReactToPrint } from "react-to-print";
-import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { db } from "../../../lib/firebase";
 
 import PageContainer from "../../../app/layout/PageContainer";
 import EngagementFunnel from "../components/EngagementFunnel";
@@ -15,63 +23,21 @@ import AnalysisHighlights from "../components/AnalysisHighlights";
 import Dropdown, { DropdownItem } from "../../../shared/components/Dropdown";
 import DocumentTemplate from "../../upload/components/DocumentTemplate";
 
-// mockData ยังเอาไว้เป็น fallback กรณี Firebase โหลดไม่ได้
 import { mockData } from "../data/mockData";
 import type { DynamicSubmission } from "../../upload/types/submission";
 
 export default function CritiquePage() {
   const printRef = useRef<HTMLDivElement>(null);
 
-  // State เก็บข้อมูลจาก Firebase
-  const [submission, setSubmission] = useState<DynamicSubmission | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // ดึง submission ล่าสุดจาก Firestore
-  useEffect(() => {
-    const fetchLatest = async () => {
-      try {
-        const q = query(
-          collection(db, "submissions"),
-          orderBy("timestamp", "desc"),
-          limit(1)
-        );
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-          setSubmission(snapshot.docs[0].data() as DynamicSubmission);
-        }
-      } catch (err) {
-        console.error("❌ Failed to fetch submission:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLatest();
-  }, []);
-
   const handlePrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `AI_Critique_Report_${Date.now()}`,
   });
 
-  // ถ้า Firebase โหลดยังไม่เสร็จ
-  if (loading) {
-    return (
-      <PageContainer>
-        <div className="flex items-center justify-center h-64 text-primary font-medium animate-pulse">
-          Loading latest analysis...
-        </div>
-      </PageContainer>
-    );
-  }
-
-  // ข้อมูลที่จะใช้ใน UI หลัก ยังเป็น mockData อยู่ก่อน
-  // (เดี๋ยว phase ต่อไปค่อย map จาก submission มาแทน)
+  // Static mock data only — Firebase removed
   const data = mockData;
 
-  // ข้อมูลที่จะใช้ใน PDF — ถ้ามี submission จาก Firebase ใช้อันนั้น ไม่งั้น fallback mockData
-  const printData: DynamicSubmission = submission ?? {
+  const printData: DynamicSubmission = {
     userId: "guest_user",
     gameTitle: "AI Critique Report",
     timestamp: new Date().toISOString(),
@@ -101,12 +67,6 @@ export default function CritiquePage() {
 
         {/* TOP BAR ACTIONS */}
         <div className="flex justify-between items-center">
-          {/* แสดงชื่อ game จาก Firebase ถ้ามี */}
-          {submission && (
-            <p className="text-sm text-gray-500">
-              Showing result for: <span className="font-bold text-primary">{submission.gameTitle}</span>
-            </p>
-          )}
           <div className="ml-auto">
             <Dropdown
               trigger={
@@ -128,7 +88,7 @@ export default function CritiquePage() {
         {/* PAGE 1 */}
         <div className="space-y-6">
           <div className="bg-primary text-background-card rounded-2xl p-5 font-bold flex justify-between items-center shadow-sm">
-            <span className="text-lg">{submission?.gameTitle ?? "Treasure Raid - Aggressive CTA"}</span>
+            <span className="text-lg">Treasure Raid - Aggressive CTA</span>
             <span className="text-[10px] bg-background-card text-primary px-3 py-1.5 rounded-full uppercase tracking-widest font-black shadow-sm">Live Test</span>
           </div>
 
@@ -193,9 +153,10 @@ export default function CritiquePage() {
 
       </div>
 
-      {/* Hidden A4 สำหรับ print — ใช้ข้อมูลจาก Firebase */}
+      {/* Hidden A4 for print */}
       <div className="hidden">
         <div ref={printRef} className="p-8">
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           <DocumentTemplate data={printData as any} />
         </div>
       </div>

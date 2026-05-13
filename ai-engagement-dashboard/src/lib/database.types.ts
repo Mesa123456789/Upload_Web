@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// Database types — manually written to match the Supabase schema (9 tables)
+// Database types — aligned with emd-schema.sql (Supabase PostgreSQL)
+//
+// Field names MUST match the actual column names in Supabase.
+// Reference: /outputs/notes/emd-schema.sql
 //
 // How to keep in sync:
-//   If you add/rename columns in Supabase, update this file too.
-//   Better long-term: run `npx supabase gen types typescript --project-id <id>`
-//   to auto-generate and replace this file.
+//   Run `npx supabase gen types typescript --project-id <id>` to auto-generate.
 // ---------------------------------------------------------------------------
 
 export type Json =
@@ -23,86 +24,96 @@ export interface Profile {
   id: string;            // uuid, FK → auth.users
   email: string;
   display_name: string | null;
-  role: "student" | "instructor" | "admin";
+  role: "student" | "instructor";
   created_at: string;    // timestamptz as ISO string
+  updated_at: string;
 }
 
 export interface Course {
   id: string;
+  instructor_id: string;  // FK → profiles.id
   title: string;
   description: string | null;
-  instructor_id: string; // FK → profiles.id
-  is_published: boolean;
+  invite_code: string;    // unique short code, e.g. "CS401-A"
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export interface CourseEnrollment {
   id: string;
-  course_id: string;     // FK → courses.id
-  student_id: string;    // FK → profiles.id
+  course_id: string;      // FK → courses.id
+  student_id: string;     // FK → profiles.id
+  enrolled_via: "invite_code" | "manual";
   enrolled_at: string;
 }
 
 export interface Project {
   id: string;
-  course_id: string;     // FK → courses.id
-  student_id: string;    // FK → profiles.id
+  owner_id: string;       // FK → profiles.id  (was student_id — schema uses owner_id)
+  course_id: string | null;  // nullable: can be a personal project
+  // Step 1 fields
   title: string;
-  genre: string[];       // text[]
-  platform: string[];    // text[]
+  genre: string[] | null;
   target_audience: string | null;
-  session_length_min: number | null;
+  session_length: string | null;  // stored as TEXT in schema, e.g. "15 min"
+  platform: string[] | null;
   core_mechanic: string | null;
-  monetization: string[]; // text[]
+  // Flow tracking
+  current_step: 1 | 2 | 3 | 4;
+  status: "in_progress" | "submitted" | "graded";
   created_at: string;
   updated_at: string;
 }
 
 export interface AdsConfig {
   id: string;
-  project_id: string;    // FK → projects.id
-  daily_ad_cap: number | null;
-  rewarded_enabled: boolean;
-  interstitial_enabled: boolean;
-  banner_enabled: boolean;
+  project_id: string;     // FK → projects.id (unique — one per project)
+  ad_network: string | null;   // e.g. 'admob', 'unity_ads'
+  revenue_model: string | null; // e.g. 'cpm', 'rewarded'
+  notes: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface AdPlacement {
   id: string;
-  ads_config_id: string; // FK → ads_configs.id
-  placement_type: string;
-  trigger_event: string | null;
-  frequency_cap: number | null;
+  ads_config_id: string;  // FK → ads_configs.id
+  placement_type: "banner" | "interstitial" | "rewarded" | "native";
+  trigger_point: string | null;  // e.g. 'level_complete', 'game_over'
+  frequency_cap: number | null;  // max times per session (null = no cap)
   notes: string | null;
+  created_at: string;
 }
 
 export interface IapConfig {
   id: string;
-  project_id: string;    // FK → projects.id
-  has_starter_pack: boolean;
-  has_battle_pass: boolean;
-  has_subscription: boolean;
+  project_id: string;     // FK → projects.id (unique — one per project)
+  store: "google_play" | "app_store" | "both" | null;
+  currency: string | null;  // default 'USD'
+  notes: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface IapItem {
   id: string;
-  iap_config_id: string; // FK → iap_configs.id
-  item_name: string;
+  iap_config_id: string;  // FK → iap_configs.id
+  name: string;
+  item_type: "consumable" | "non_consumable" | "subscription";
   price_usd: number | null;
-  category: string | null;
   description: string | null;
+  created_at: string;
 }
 
 export interface Analysis {
   id: string;
-  project_id: string;    // FK → projects.id
-  analyzed_by: string;   // FK → profiles.id
-  score: number | null;
+  project_id: string;     // FK → projects.id
+  overall_score: number | null;  // 0-100 ethical score
+  passed: boolean;
+  failure_points: Json;   // jsonb: [{ issue, severity, suggestion }]
   summary: string | null;
-  failure_points: Json;  // jsonb — structured AI output
-  recommendations: string | null;
+  model_used: string | null;
   created_at: string;
   // Note: no updated_at — analyses are immutable append-only audit logs
 }
@@ -111,14 +122,22 @@ export interface Analysis {
 // Insert types — what you pass to INSERT (omit auto-generated fields)
 // ---------------------------------------------------------------------------
 
-export type ProfileInsert = Omit<Profile, "created_at">;
-export type CourseInsert = Omit<Course, "id" | "created_at">;
+export type ProfileInsert = Omit<Profile, "created_at" | "updated_at">;
+
+export type CourseInsert = Omit<Course, "id" | "created_at" | "updated_at">;
+
 export type CourseEnrollmentInsert = Omit<CourseEnrollment, "id" | "enrolled_at">;
-export type ProjectInsert = Omit<Project, "id" | "created_at" | "updated_at">;
-export type AdsConfigInsert = Omit<AdsConfig, "id" | "created_at">;
-export type AdPlacementInsert = Omit<AdPlacement, "id">;
-export type IapConfigInsert = Omit<IapConfig, "id" | "created_at">;
-export type IapItemInsert = Omit<IapItem, "id">;
+
+export type ProjectInsert = Omit<Project, "id" | "current_step" | "status" | "created_at" | "updated_at">;
+
+export type AdsConfigInsert = Omit<AdsConfig, "id" | "created_at" | "updated_at">;
+
+export type AdPlacementInsert = Omit<AdPlacement, "id" | "created_at">;
+
+export type IapConfigInsert = Omit<IapConfig, "id" | "created_at" | "updated_at">;
+
+export type IapItemInsert = Omit<IapItem, "id" | "created_at">;
+
 export type AnalysisInsert = Omit<Analysis, "id" | "created_at">;
 
 // ---------------------------------------------------------------------------

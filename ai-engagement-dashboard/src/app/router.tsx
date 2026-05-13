@@ -8,10 +8,11 @@
 //     /auth/callback   → AuthCallbackPage (handles Google OAuth redirect)
 //
 //   Student routes (auth required, any role):
-//     /project/setup     → Step 1: fill game info (SetupPage)
-//     /project/build     → Step 2: configure Ads + IAP (BuildPage)
-//     /project/guardrail → Step 3: view AI guardrail result (GuardrailPage)
-//     /project/output    → Step 4: summary + export (OutputPage)
+//     /project/new             → Step 1: create new project (SetupPage, no projectId yet)
+//     /project/:projectId/setup    → Step 1: edit existing project setup
+//     /project/:projectId/build    → Step 2: Ads + IAP config
+//     /project/:projectId/guardrail → Step 3: AI ethics review
+//     /project/:projectId/output   → Step 4: summary + export
 //
 //   Instructor routes (auth required + role = "instructor"):
 //     /instructor/dashboard → overview stats + projects table
@@ -19,12 +20,17 @@
 //     /instructor/projects  → view all student projects
 //
 //   Legacy redirect:
-//     /  → redirect based on role (student → /project/setup,
+//     /  → redirect based on role (student → /project/new,
 //                                  instructor → /instructor/dashboard)
 //
 // Guard layers:
 //   ProtectedRoute — checks session (logged in?)
 //   RoleRoute      — checks profile.role (right role?)
+//
+// Why URL params instead of router state?
+//   router.state is lost on page refresh (no persistence).
+//   URL params survive refresh — the projectId stays in the URL and the page
+//   can re-fetch from Supabase on mount.
 // ---------------------------------------------------------------------------
 
 import { createBrowserRouter, Navigate } from "react-router-dom";
@@ -50,26 +56,16 @@ import RoleRoute from "./RoleRoute";
 
 export const router = createBrowserRouter([
   // -------------------------------------------------------------------------
-  // Public routes — accessible without login
+  // Public routes
   // -------------------------------------------------------------------------
   { path: "/login", element: <LoginPage /> },
   {
-    // After Google OAuth, Supabase redirects here.
-    // AuthCallbackPage reads the session, then redirects by role.
     path: "/auth/callback",
     element: <AuthCallbackPage />,
   },
 
   // -------------------------------------------------------------------------
   // Root redirect — "/" sends users to their role-specific home
-  //
-  // Why redirect instead of showing a page?
-  //   "/" has no meaning in this app — the real entry points are
-  //   /project/setup (student) and /instructor/dashboard (instructor).
-  //   Redirecting avoids maintaining a separate home page component.
-  //
-  // RoleRedirect is a tiny inline component that reads profile.role
-  // and navigates. It's inside ProtectedRoute so we know user is logged in.
   // -------------------------------------------------------------------------
   {
     path: "/",
@@ -81,35 +77,52 @@ export const router = createBrowserRouter([
   },
 
   // -------------------------------------------------------------------------
-  // Student routes — any authenticated user can access
-  //   (instructor can also preview student flow if needed)
+  // Student routes
   // -------------------------------------------------------------------------
+
+  // Step 1 — new project (no projectId yet)
   {
-    path: "/project/setup",
+    path: "/project/new",
     element: (
       <ProtectedRoute>
         <SetupPage />
       </ProtectedRoute>
     ),
   },
+
+  // Step 1 — edit existing project setup
   {
-    path: "/project/build",
+    path: "/project/:projectId/setup",
+    element: (
+      <ProtectedRoute>
+        <SetupPage />
+      </ProtectedRoute>
+    ),
+  },
+
+  // Step 2 — Ads + IAP config
+  {
+    path: "/project/:projectId/build",
     element: (
       <ProtectedRoute>
         <BuildPage />
       </ProtectedRoute>
     ),
   },
+
+  // Step 3 — AI Guardrail review
   {
-    path: "/project/guardrail",
+    path: "/project/:projectId/guardrail",
     element: (
       <ProtectedRoute>
         <GuardrailPage />
       </ProtectedRoute>
     ),
   },
+
+  // Step 4 — Output + export
   {
-    path: "/project/output",
+    path: "/project/:projectId/output",
     element: (
       <ProtectedRoute>
         <OutputPage />
@@ -118,7 +131,7 @@ export const router = createBrowserRouter([
   },
 
   // -------------------------------------------------------------------------
-  // Instructor routes — auth + role = "instructor" required
+  // Instructor routes
   // -------------------------------------------------------------------------
   {
     path: "/instructor/dashboard",
@@ -154,9 +167,6 @@ export const router = createBrowserRouter([
 
 // ---------------------------------------------------------------------------
 // RoleRedirect — reads profile.role and navigates to the correct home
-//
-// Placed here (not a separate file) because it's only used for the "/" route
-// and is too small to warrant its own file.
 // ---------------------------------------------------------------------------
 
 import { useAuth } from "../features/auth/context/AuthContext";
@@ -164,7 +174,6 @@ import { useAuth } from "../features/auth/context/AuthContext";
 function RoleRedirect() {
   const { profile, loading } = useAuth();
 
-  // Still loading profile — spinner to prevent flicker
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50/50">
@@ -177,6 +186,6 @@ function RoleRedirect() {
     return <Navigate to="/instructor/dashboard" replace />;
   }
 
-  // Default: student (and any unknown role) goes to setup
-  return <Navigate to="/project/setup" replace />;
+  // Default: student (and any unknown role) goes to new project
+  return <Navigate to="/project/new" replace />;
 }

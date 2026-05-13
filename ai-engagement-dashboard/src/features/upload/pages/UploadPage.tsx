@@ -23,13 +23,6 @@ import type { GameFormData } from "../components/UploadForm";
 import type { DynamicSubmission } from "../types/submission";
 import { mockData } from "../../critique/data/mockData";
 
-// ---------------------------------------------------------------------------
-// TODO: Replace this with a real course selector once courses UI is built.
-// For now, every project is placed into this hardcoded course id.
-// This constant makes it easy to find and replace later.
-// ---------------------------------------------------------------------------
-const TEMP_COURSE_ID = "00000000-0000-0000-0000-000000000001";
-
 export default function UploadPage() {
   const { user } = useAuth(); // get the logged-in user from AuthContext
   const [submissionData, setSubmissionData] = useState<DynamicSubmission | null>(null);
@@ -98,15 +91,17 @@ export default function UploadPage() {
     setIsProcessing(true);
     try {
       const { data, error } = await createProject({
-        course_id: TEMP_COURSE_ID,        // TODO: replace with real course selector
-        student_id: user.id,              // from Supabase auth — matches profiles.id
+        course_id: null,                  // personal project — no course assigned
+        owner_id: user.id,                // matches profiles.id (schema uses owner_id)
         title: pendingFormData.title,
         genre: pendingFormData.genre,
         platform: pendingFormData.platform,
         target_audience: pendingFormData.target_audience || null,
-        session_length_min: pendingFormData.session_length_min,
+        // session_length_min (number) → session_length (text) in new schema
+        session_length: pendingFormData.session_length_min
+          ? `${pendingFormData.session_length_min} min`
+          : null,
         core_mechanic: pendingFormData.core_mechanic || null,
-        monetization: pendingFormData.monetization,
       });
 
       if (error) {

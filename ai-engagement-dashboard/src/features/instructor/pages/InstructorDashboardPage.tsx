@@ -11,9 +11,6 @@
 //   1. Fetch all courses for the logged-in instructor
 //   2. For each course, fetch all projects (Promise.all — parallel)
 //   3. Flatten + compute stats locally
-//
-// Note: Score and Risk columns require the `analyses` table which is not yet
-//       wired to a service. They are omitted for now and documented below.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -69,14 +66,13 @@ export default function InstructorDashboardPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Guard: don't fetch until we have a profile with an id
     if (!profile?.id) return;
 
     async function load() {
       setLoading(true);
       setError(null);
 
-      // Step 1: fetch all courses for this instructor
+      // Fetch all courses for this instructor
       const { data: courseList, error: courseErr } = await listInstructorCourses(profile!.id);
       if (courseErr) {
         setError(courseErr);
@@ -85,20 +81,16 @@ export default function InstructorDashboardPage() {
       }
       setCourses(courseList);
 
-      // Step 2: fetch projects for every course in parallel
+      // Fetch projects for every course in parallel
       const results = await Promise.all(
         courseList.map((c) =>
           listCourseProjects(c.id).then(({ data }) =>
-            // Tag each project with the course title so the table can show it
             (data ?? []).map((p): ProjectRow => ({ ...p, courseTitle: c.title }))
           )
         )
       );
 
-      // Flatten [[ProjectRow], [ProjectRow], ...] → [ProjectRow]
       const allProjects = results.flat();
-
-      // Sort newest first
       allProjects.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
@@ -110,8 +102,8 @@ export default function InstructorDashboardPage() {
     load();
   }, [profile?.id]);
 
-  // Compute stats from live data
-  const uniqueStudents = new Set(projects.map((p) => p.student_id)).size;
+  // owner_id is the student's id in the new schema
+  const uniqueStudents = new Set(projects.map((p) => p.owner_id)).size;
 
   return (
     <PageContainer>
@@ -124,25 +116,22 @@ export default function InstructorDashboardPage() {
         </p>
       </div>
 
-      {/* Loading state */}
       {loading && (
         <p className="text-sm text-gray-400 mb-6">Loading data...</p>
       )}
 
-      {/* Error state */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Stats row — shown even while loading so layout doesn't jump */}
       {!loading && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <StatCard
             label="My Courses"
             value={courses.length}
-            sublabel="published + draft"
+            sublabel="active + inactive"
           />
           <StatCard
             label="Total Projects"
@@ -158,7 +147,6 @@ export default function InstructorDashboardPage() {
         </div>
       )}
 
-      {/* Projects table */}
       {!loading && !error && (
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -178,6 +166,7 @@ export default function InstructorDashboardPage() {
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Project</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Genre</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Platform</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Step</th>
                   <th className="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Created</th>
                 </tr>
               </thead>
@@ -186,8 +175,9 @@ export default function InstructorDashboardPage() {
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 text-gray-500 text-xs">{p.courseTitle}</td>
                     <td className="px-6 py-4 text-gray-700 font-medium">{p.title}</td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">{p.genre.join(", ") || "—"}</td>
-                    <td className="px-6 py-4 text-gray-500 text-xs">{p.platform.join(", ") || "—"}</td>
+                    <td className="px-6 py-4 text-gray-500 text-xs">{(p.genre ?? []).join(", ") || "—"}</td>
+                    <td className="px-6 py-4 text-gray-500 text-xs">{(p.platform ?? []).join(", ") || "—"}</td>
+                    <td className="px-6 py-4 text-gray-500 text-xs">Step {p.current_step}</td>
                     <td className="px-6 py-4 text-gray-400 text-xs">
                       {new Date(p.created_at).toLocaleDateString()}
                     </td>

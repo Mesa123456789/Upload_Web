@@ -1,21 +1,22 @@
-import { useNavigate } from "react-router-dom";
-import { signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "../../../lib/firebase"; 
+import { signInWithGoogle } from "../../../lib/supabase";
 import Card from "../../../shared/components/Card";
 
+// LoginPage — no useNavigate needed here because Supabase OAuth uses a
+// redirect flow: browser goes to Google → Google redirects back to our app
+// → Supabase session is set automatically on return.
 export default function LoginPage() {
-  const navigate = useNavigate();
-
   const handleCmuLogin = () => {
     alert("ระบบ CMU OAuth กำลังรอเชื่อมต่อ API ครับ");
   };
 
   const handleGoogleGuestLogin = async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      console.log("Login Success! User:", user.displayName, user.email);
-      navigate("/");
+      // signInWithOAuth triggers a full-page redirect to Google.
+      // On success, Google sends the user back to the redirectTo URL
+      // (defaults to window.location.origin if not set).
+      // Supabase then sets the session automatically — no manual navigate needed.
+      const { error } = await signInWithGoogle();
+      if (error) throw error;
     } catch (error) {
       console.error("Google Auth Error:", error);
       alert("ล็อกอินล้มเหลว กรุณาลองใหม่อีกครั้ง");
@@ -27,7 +28,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <Card>
           <div className="flex flex-col items-center text-center space-y-6">
-            
+
             {/* Header Section */}
             <div>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">
@@ -40,23 +41,21 @@ export default function LoginPage() {
 
             {/* Actions Section */}
             <div className="w-full flex flex-col gap-3">
-              
-              {/* ปุ่ม CMU Account (อัปเดตใหม่) */}
+
+              {/* CMU Account button */}
               <button
                 onClick={handleCmuLogin}
                 className="w-full px-6 py-2.5 rounded-full text-white bg-[#9E76B4] hover:bg-[#8D6AA1] transition-colors shadow-sm font-bold cursor-pointer active:scale-95 flex items-center justify-center gap-3"
               >
-                {/* ดึงภาพจากโฟลเดอร์ public/ มาแสดง 
-                */}
-                <img 
-                  src="/Chiang_Mai_University.svg" 
-                  alt="CMU Logo" 
-                  className="w-6 h-6 object-contain bg-white rounded-full p-0.5" 
+                <img
+                  src="/Chiang_Mai_University.svg"
+                  alt="CMU Logo"
+                  className="w-6 h-6 object-contain bg-white rounded-full p-0.5"
                 />
                 Login with CMU Account
               </button>
-              
-              {/* ปุ่มรองสำหรับ Guest */}
+
+              {/* Google Guest button */}
               <button
                 onClick={handleGoogleGuestLogin}
                 className="w-full px-6 py-2.5 rounded-full border-2 border-gray-200 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm font-bold cursor-pointer active:scale-95 flex items-center justify-center gap-3"

@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* EMD — Ethical Monetization Designer */
+/* Design system — warm cream palette, CMU purple accent */
+
+@theme {
+  /* Brand colors — terracotta/brown palette (matched from ai-engagement-dashboard) */
+  --color-primary: #8B6A58;
+  --color-primary-light: #A57A63;
+  --color-secondary: #6E6E6E;
+
+  /* Surface tokens */
+  --color-background-main: #E7E4DD;
+  --color-background-card: #F4F3EF;
+
+  /* Typography */
+  --font-inter: "Inter", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  background-color: #E7E4DD;
+  color: #2F2F2F;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

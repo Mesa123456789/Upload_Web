@@ -1,4 +1,4 @@
-import { supabase } from '../../../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../../../lib/supabase'
 import type {
   Project,
   AdsConfig,
@@ -6,6 +6,119 @@ import type {
   IapConfig,
   IapItem,
 } from '../../../lib/database.types'
+
+interface DemoProjectState {
+  projects: Project[]
+  adsConfigs: AdsConfig[]
+  adPlacements: AdPlacement[]
+  iapConfigs: IapConfig[]
+  iapItems: IapItem[]
+}
+
+const demoNow = new Date().toISOString()
+const demoStorageKey = 'emd-demo-project-state'
+
+function createDemoState(): DemoProjectState {
+  return {
+    projects: [
+      {
+        id: 'demo-project',
+        owner_id: 'demo-student',
+        course_id: 'demo-course',
+        title: 'PuzzleWorld Plus',
+        genre: ['Puzzle', 'Casual'],
+        target_audience: 'All ages',
+        session_length: '5-10 min',
+        platform: ['Mobile (iOS)', 'Mobile (Android)'],
+        core_mechanic: 'Player clears puzzle levels, earns coins, upgrades boosters, then starts the next challenge.',
+        current_step: 4,
+        status: 'draft',
+        submitted_at: null,
+        grade: null,
+        instructor_comment: null,
+        graded_at: null,
+        created_at: demoNow,
+        updated_at: demoNow,
+      },
+    ],
+    adsConfigs: [
+      {
+        id: 'demo-ads',
+        project_id: 'demo-project',
+        ad_network: 'AdMob',
+        revenue_model: 'rewarded',
+        notes: 'Revenue mix target: Ads 60% / IAP 40%',
+        created_at: demoNow,
+        updated_at: demoNow,
+      },
+    ],
+    adPlacements: [
+      {
+        id: 'demo-ad-1',
+        ads_config_id: 'demo-ads',
+        placement_type: 'rewarded',
+        trigger_point: 'After first level',
+        frequency_cap: 2,
+        notes: null,
+        created_at: demoNow,
+      },
+      {
+        id: 'demo-ad-2',
+        ads_config_id: 'demo-ads',
+        placement_type: 'interstitial',
+        trigger_point: 'Outcome screen',
+        frequency_cap: 1,
+        notes: null,
+        created_at: demoNow,
+      },
+    ],
+    iapConfigs: [
+      {
+        id: 'demo-iap',
+        project_id: 'demo-project',
+        store: 'both',
+        currency: 'USD',
+        notes: null,
+        created_at: demoNow,
+        updated_at: demoNow,
+      },
+    ],
+    iapItems: [
+      {
+        id: 'demo-iap-1',
+        iap_config_id: 'demo-iap',
+        name: 'Energy Refill',
+        item_type: 'consumable',
+        price_usd: 0.99,
+        description: 'Restore 20 energy',
+        created_at: demoNow,
+      },
+      {
+        id: 'demo-iap-2',
+        iap_config_id: 'demo-iap',
+        name: 'Starter Pack',
+        item_type: 'consumable',
+        price_usd: 4.99,
+        description: '150 coins, 50 gems, and 2 boosters',
+        created_at: demoNow,
+      },
+    ],
+  }
+}
+
+function readDemoState(): DemoProjectState {
+  const raw = window.localStorage.getItem(demoStorageKey)
+  if (!raw) {
+    const initial = createDemoState()
+    writeDemoState(initial)
+    return initial
+  }
+  return JSON.parse(raw) as DemoProjectState
+}
+
+function writeDemoState(state: DemoProjectState) {
+  window.localStorage.setItem(demoStorageKey, JSON.stringify(state))
+}
 
 // ─────────────────────────────────────────────
 // Projects
@@ -15,6 +128,32 @@ export async function createProject(params: {
   course_id: string
   title: string
 }): Promise<Project> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const project: Project = {
+      id: `demo-project-${Date.now()}`,
+      owner_id: 'demo-student',
+      course_id: params.course_id,
+      title: params.title,
+      genre: null,
+      target_audience: null,
+      session_length: null,
+      platform: null,
+      core_mechanic: null,
+      current_step: 1,
+      status: 'draft',
+      submitted_at: null,
+      grade: null,
+      instructor_comment: null,
+      graded_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    state.projects.unshift(project)
+    writeDemoState(state)
+    return project
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -34,6 +173,12 @@ export async function createProject(params: {
 }
 
 export async function getProject(projectId: string): Promise<Project> {
+  if (!isSupabaseConfigured) {
+    const project = readDemoState().projects.find((item) => item.id === projectId)
+    if (!project) throw new Error('Project not found')
+    return project
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -48,6 +193,19 @@ export async function updateProject(
   projectId: string,
   updates: Partial<Project>
 ): Promise<Project> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const index = state.projects.findIndex((item) => item.id === projectId)
+    if (index === -1) throw new Error('Project not found')
+    state.projects[index] = {
+      ...state.projects[index],
+      ...updates,
+      updated_at: new Date().toISOString(),
+    }
+    writeDemoState(state)
+    return state.projects[index]
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .update(updates)
@@ -69,6 +227,8 @@ async function instructorUpdateProject(
   projectId: string,
   updates: Partial<Project>
 ): Promise<Project> {
+  if (!isSupabaseConfigured) return updateProject(projectId, updates)
+
   const { error } = await supabase
     .from('projects')
     .update(updates)
@@ -85,6 +245,12 @@ export async function listProjectsByCourseAndOwner(
   courseId: string,
   ownerId: string
 ): Promise<Project[]> {
+  if (!isSupabaseConfigured) {
+    return readDemoState().projects
+      .filter((project) => project.course_id === courseId && project.owner_id === ownerId)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -98,6 +264,12 @@ export async function listProjectsByCourseAndOwner(
 
 // Instructor: get all projects in a course (across all students)
 export async function listCourseProjects(courseId: string): Promise<Project[]> {
+  if (!isSupabaseConfigured) {
+    return readDemoState().projects
+      .filter((project) => project.course_id === courseId)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  }
+
   const { data, error } = await supabase
     .from('projects')
     .select('*')
@@ -161,6 +333,23 @@ export async function gradeProject(
 // ads_configs and iap_configs reference projects with ON DELETE CASCADE,
 // so deleting the project row removes child rows automatically.
 export async function deleteProject(projectId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const projectConfigIds = state.adsConfigs
+      .filter((config) => config.project_id === projectId)
+      .map((config) => config.id)
+    const iapConfigIds = state.iapConfigs
+      .filter((config) => config.project_id === projectId)
+      .map((config) => config.id)
+    state.projects = state.projects.filter((project) => project.id !== projectId)
+    state.adsConfigs = state.adsConfigs.filter((config) => config.project_id !== projectId)
+    state.adPlacements = state.adPlacements.filter((placement) => !projectConfigIds.includes(placement.ads_config_id))
+    state.iapConfigs = state.iapConfigs.filter((config) => config.project_id !== projectId)
+    state.iapItems = state.iapItems.filter((item) => !iapConfigIds.includes(item.iap_config_id))
+    writeDemoState(state)
+    return
+  }
+
   const { error } = await supabase
     .from('projects')
     .delete()
@@ -180,6 +369,24 @@ export async function upsertAdsConfig(params: {
   revenue_model?: string | null
   notes?: string | null
 }): Promise<AdsConfig> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const index = state.adsConfigs.findIndex((config) => config.project_id === params.project_id)
+    const nextConfig: AdsConfig = {
+      id: index >= 0 ? state.adsConfigs[index].id : `demo-ads-${Date.now()}`,
+      project_id: params.project_id,
+      ad_network: params.ad_network ?? null,
+      revenue_model: params.revenue_model ?? null,
+      notes: params.notes ?? null,
+      created_at: index >= 0 ? state.adsConfigs[index].created_at : new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    if (index >= 0) state.adsConfigs[index] = nextConfig
+    else state.adsConfigs.push(nextConfig)
+    writeDemoState(state)
+    return nextConfig
+  }
+
   const { data, error } = await supabase
     .from('ads_configs')
     .upsert(
@@ -199,6 +406,10 @@ export async function upsertAdsConfig(params: {
 }
 
 export async function getAdsConfig(projectId: string): Promise<AdsConfig | null> {
+  if (!isSupabaseConfigured) {
+    return readDemoState().adsConfigs.find((config) => config.project_id === projectId) ?? null
+  }
+
   const { data, error } = await supabase
     .from('ads_configs')
     .select('*')
@@ -214,6 +425,10 @@ export async function getAdsConfig(projectId: string): Promise<AdsConfig | null>
 // ─────────────────────────────────────────────
 
 export async function listAdPlacements(adsConfigId: string): Promise<AdPlacement[]> {
+  if (!isSupabaseConfigured) {
+    return readDemoState().adPlacements.filter((placement) => placement.ads_config_id === adsConfigId)
+  }
+
   const { data, error } = await supabase
     .from('ad_placements')
     .select('*')
@@ -231,6 +446,22 @@ export async function createAdPlacement(params: {
   frequency_cap?: number | null
   notes?: string | null
 }): Promise<AdPlacement> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const placement: AdPlacement = {
+      id: `demo-ad-${Date.now()}`,
+      ads_config_id: params.ads_config_id,
+      placement_type: params.placement_type,
+      trigger_point: params.trigger_point ?? null,
+      frequency_cap: params.frequency_cap ?? null,
+      notes: params.notes ?? null,
+      created_at: new Date().toISOString(),
+    }
+    state.adPlacements.push(placement)
+    writeDemoState(state)
+    return placement
+  }
+
   const { data, error } = await supabase
     .from('ad_placements')
     .insert(params)
@@ -242,6 +473,13 @@ export async function createAdPlacement(params: {
 }
 
 export async function deleteAdPlacement(placementId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    state.adPlacements = state.adPlacements.filter((placement) => placement.id !== placementId)
+    writeDemoState(state)
+    return
+  }
+
   const { error } = await supabase
     .from('ad_placements')
     .delete()
@@ -260,6 +498,24 @@ export async function upsertIapConfig(params: {
   currency?: string | null
   notes?: string | null
 }): Promise<IapConfig> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const index = state.iapConfigs.findIndex((config) => config.project_id === params.project_id)
+    const nextConfig: IapConfig = {
+      id: index >= 0 ? state.iapConfigs[index].id : `demo-iap-${Date.now()}`,
+      project_id: params.project_id,
+      store: params.store ?? null,
+      currency: params.currency ?? 'USD',
+      notes: params.notes ?? null,
+      created_at: index >= 0 ? state.iapConfigs[index].created_at : new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    if (index >= 0) state.iapConfigs[index] = nextConfig
+    else state.iapConfigs.push(nextConfig)
+    writeDemoState(state)
+    return nextConfig
+  }
+
   const { data, error } = await supabase
     .from('iap_configs')
     .upsert(
@@ -279,6 +535,10 @@ export async function upsertIapConfig(params: {
 }
 
 export async function getIapConfig(projectId: string): Promise<IapConfig | null> {
+  if (!isSupabaseConfigured) {
+    return readDemoState().iapConfigs.find((config) => config.project_id === projectId) ?? null
+  }
+
   const { data, error } = await supabase
     .from('iap_configs')
     .select('*')
@@ -294,6 +554,10 @@ export async function getIapConfig(projectId: string): Promise<IapConfig | null>
 // ─────────────────────────────────────────────
 
 export async function listIapItems(iapConfigId: string): Promise<IapItem[]> {
+  if (!isSupabaseConfigured) {
+    return readDemoState().iapItems.filter((item) => item.iap_config_id === iapConfigId)
+  }
+
   const { data, error } = await supabase
     .from('iap_items')
     .select('*')
@@ -311,6 +575,22 @@ export async function createIapItem(params: {
   price_usd?: number | null
   description?: string | null
 }): Promise<IapItem> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    const item: IapItem = {
+      id: `demo-iap-item-${Date.now()}`,
+      iap_config_id: params.iap_config_id,
+      name: params.name,
+      item_type: params.item_type,
+      price_usd: params.price_usd ?? null,
+      description: params.description ?? null,
+      created_at: new Date().toISOString(),
+    }
+    state.iapItems.push(item)
+    writeDemoState(state)
+    return item
+  }
+
   const { data, error } = await supabase
     .from('iap_items')
     .insert(params)
@@ -322,6 +602,13 @@ export async function createIapItem(params: {
 }
 
 export async function deleteIapItem(itemId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const state = readDemoState()
+    state.iapItems = state.iapItems.filter((item) => item.id !== itemId)
+    writeDemoState(state)
+    return
+  }
+
   const { error } = await supabase
     .from('iap_items')
     .delete()

@@ -1,64 +1,54 @@
 interface StepIndicatorProps {
-  current: number // 1-4
+  current: number
 }
 
 const STEPS = ['Setup', 'Build', 'Guardrail', 'Output']
 
 export default function StepIndicator({ current }: StepIndicatorProps) {
   return (
-    // Horizontal progress indicator — shows all 4 steps with connectors
-    <div className="flex items-center">
-      {STEPS.map((label, idx) => {
-        const stepNum = idx + 1
-        const isCompleted = stepNum < current
-        const isActive = stepNum === current
+    <div className="rounded-lg border border-line bg-white p-3 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-center overflow-x-auto app-scrollbar">
+          {STEPS.map((label, index) => {
+            const step = index + 1
+            const isDone = step < current
+            const isActive = step === current
 
-        return (
-          <div key={label} className="flex items-center">
-            {/* Step pill: number/checkmark + label */}
-            <div className="flex items-center gap-2">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                  isCompleted
-                    ? 'bg-green-500 text-white'
-                    : isActive
-                    ? 'bg-primary text-white'
-                    : 'bg-black/10 text-gray-400'
-                }`}
-              >
-                {isCompleted ? (
-                  // Checkmark for completed steps
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  stepNum
+            return (
+              <div key={label} className="flex shrink-0 items-center">
+                <div
+                  className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
+                    isActive
+                      ? 'bg-primary text-white shadow-sm'
+                      : isDone
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : 'text-slate-500'
+                  }`}
+                >
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : isDone
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {isDone ? '✓' : step}
+                  </span>
+                  {label}
+                </div>
+                {index < STEPS.length - 1 && (
+                  <div className={`mx-2 h-px w-8 ${step < current ? 'bg-emerald-300' : 'bg-line'}`} />
                 )}
               </div>
-              <span
-                className={`text-sm font-bold transition-colors ${
-                  isActive
-                    ? 'text-gray-900'
-                    : isCompleted
-                    ? 'text-green-600'
-                    : 'text-gray-400'
-                }`}
-              >
-                {label}
-              </span>
-            </div>
-
-            {/* Connector line between steps */}
-            {idx < STEPS.length - 1 && (
-              <div
-                className={`mx-3 h-0.5 w-8 rounded-full transition-colors ${
-                  stepNum < current ? 'bg-green-400' : 'bg-black/10'
-                }`}
-              />
-            )}
-          </div>
-        )
-      })}
+            )
+          })}
+        </div>
+        <span className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
+          Step {current} of 4
+        </span>
+      </div>
     </div>
   )
 }

@@ -8,16 +8,6 @@ import Card from '../../../shared/components/Card'
 import Badge from '../../../shared/components/Badge'
 import Spinner from '../../../shared/components/Spinner'
 
-// Map step number to label for display
-function stepLabel(step: number): string {
-  return ['', 'Setup', 'Build', 'Guardrail', 'Output'][step] ?? 'Unknown'
-}
-
-function stepVariant(step: number): 'blue' | 'yellow' | 'purple' | 'green' {
-  return (['blue', 'blue', 'yellow', 'purple', 'green'] as const)[step] ?? 'blue'
-}
-
-// Sentinel value — "show all courses" mode
 const ALL_COURSES = '__ALL__'
 
 export default function InstructorDashboardPage() {
@@ -29,8 +19,6 @@ export default function InstructorDashboardPage() {
   const [studentsLoading, setStudentsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  // selectedCourseId: ALL_COURSES means show stats/projects across all courses
   const [selectedCourseId, setSelectedCourseId] = useState<string>(ALL_COURSES)
 
   useEffect(() => {
@@ -38,11 +26,7 @@ export default function InstructorDashboardPage() {
       try {
         const fetchedCourses = await listInstructorCourses()
         setCourses(fetchedCourses)
-
-        // Load projects across all courses simultaneously
-        const projectArrays = await Promise.all(
-          fetchedCourses.map((c) => listCourseProjects(c.id))
-        )
+        const projectArrays = await Promise.all(fetchedCourses.map((course) => listCourseProjects(course.id)))
         setAllProjects(projectArrays.flat())
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load')
@@ -53,19 +37,17 @@ export default function InstructorDashboardPage() {
     load()
   }, [])
 
-  // Load enrolled students whenever a specific course is selected
   useEffect(() => {
     if (selectedCourseId === ALL_COURSES) {
       setEnrolledStudents([])
       return
     }
+
     async function loadStudents() {
       setStudentsLoading(true)
       try {
-        const students = await listEnrolledStudents(selectedCourseId)
-        setEnrolledStudents(students)
+        setEnrolledStudents(await listEnrolledStudents(selectedCourseId))
       } catch {
-        // Non-critical — don't block the rest of the page
         setEnrolledStudents([])
       } finally {
         setStudentsLoading(false)
@@ -84,208 +66,167 @@ export default function InstructorDashboardPage() {
     )
   }
 
-  // Filter projects based on selected course
   const visibleProjects =
     selectedCourseId === ALL_COURSES
       ? allProjects
-      : allProjects.filter((p) => p.course_id === selectedCourseId)
-
-  const totalProjects = visibleProjects.length
-  const uniqueStudents = new Set(visibleProjects.map((p) => p.owner_id)).size
+      : allProjects.filter((project) => project.course_id === selectedCourseId)
+  const uniqueStudents = new Set(visibleProjects.map((project) => project.owner_id)).size
+  const submitted = visibleProjects.filter((project) => project.status !== 'draft').length
+  const guardrailReady = visibleProjects.filter((project) => project.current_step >= 3).length
 
   return (
     <PageContainer>
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-            Instructor
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 leading-6 mt-1">
-            Overview of all courses and student projects
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-primary">Instructor Admin</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">Platform Administration</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Monitor class projects, guardrail readiness, and course activity.
           </p>
         </div>
-
-        {/* Course selector dropdown */}
         {courses.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-              Viewing
-            </label>
-            <select
-              value={selectedCourseId}
-              onChange={(e) => setSelectedCourseId(e.target.value)}
-              className="border border-black/10 rounded-xl px-4 py-2 text-sm bg-background-card focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <option value={ALL_COURSES}>All Courses</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.title}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={selectedCourseId}
+            onChange={(event) => setSelectedCourseId(event.target.value)}
+            className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value={ALL_COURSES}>All Courses</option>
+            {courses.map((course) => (
+              <option key={course.id} value={course.id}>{course.title}</option>
+            ))}
+          </select>
         )}
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card className="text-center">
-          <p className="text-3xl font-bold text-gray-900">
-            {selectedCourseId === ALL_COURSES ? courses.length : 1}
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            {selectedCourseId === ALL_COURSES ? 'Courses' : 'Course'}
-          </p>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Courses</p>
+          <p className="mt-3 text-4xl font-black text-slate-950">{selectedCourseId === ALL_COURSES ? courses.length : 1}</p>
         </Card>
-        <Card className="text-center">
-          <p className="text-3xl font-bold text-gray-900">{totalProjects}</p>
-          <p className="text-sm text-gray-500 mt-1">Active Projects</p>
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Active Projects</p>
+          <p className="mt-3 text-4xl font-black text-slate-950">{visibleProjects.length}</p>
         </Card>
-        <Card className="text-center">
-          <p className="text-3xl font-bold text-gray-900">{uniqueStudents}</p>
-          <p className="text-sm text-gray-500 mt-1">Students</p>
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Submitted</p>
+          <p className="mt-3 text-4xl font-black text-sky-700">{submitted}</p>
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Guardrail Ready</p>
+          <p className="mt-3 text-4xl font-black text-emerald-700">{guardrailReady}</p>
         </Card>
       </div>
 
-      {/* Recent projects table */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-            {selectedCourseId === ALL_COURSES
-              ? 'All Projects'
-              : `Projects — ${courses.find((c) => c.id === selectedCourseId)?.title ?? ''}`}
-          </p>
-          <button
-            onClick={() =>
-              navigate(
-                selectedCourseId === ALL_COURSES
-                  ? '/instructor/projects'
-                  : `/instructor/projects?courseId=${selectedCourseId}`
-              )
-            }
-            className="text-xs font-bold text-primary hover:text-primary-light transition-colors"
-          >
-            View all
-          </button>
-        </div>
-
-        {visibleProjects.length === 0 ? (
-          <p className="text-gray-400 text-sm text-center py-8">
-            No student projects yet. Share your course invite code to get started.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-black/5">
-                <th className="text-left text-xs font-bold text-gray-400 pb-2">Project</th>
-                <th className="text-left text-xs font-bold text-gray-400 pb-2">Step</th>
-                <th className="text-left text-xs font-bold text-gray-400 pb-2">Status</th>
-                <th className="text-left text-xs font-bold text-gray-400 pb-2">Last Updated</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visibleProjects.slice(0, 10).map((project) => (
-                <tr key={project.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
-                  <td className="py-3 font-medium text-gray-800">{project.title}</td>
-                  <td className="py-3">
-                    <Badge variant={stepVariant(project.current_step)}>
-                      {stepLabel(project.current_step)}
-                    </Badge>
-                  </td>
-                  <td className="py-3">
-                    <Badge
-                      variant={
-                        project.status === 'graded'
-                          ? 'green'
-                          : project.status === 'submitted'
-                          ? 'blue'
-                          : 'default'
-                      }
-                    >
-                      {project.status}
-                    </Badge>
-                  </td>
-                  <td className="py-3 text-gray-400 text-xs">
-                    {new Date(project.updated_at).toLocaleDateString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
-
-      {/* Enrolled students — shown only when a specific course is selected */}
-      {selectedCourseId !== ALL_COURSES && (
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-              Enrolled Students
-            </p>
-            <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-              {enrolledStudents.length}
-            </span>
-          </div>
-
-          {studentsLoading ? (
-            <div className="flex justify-center py-4">
-              <Spinner size="sm" />
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          <Card className="overflow-hidden p-0">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">Projects</h2>
+                <p className="text-sm text-slate-500">Class overview and review status.</p>
+              </div>
+              <button onClick={() => navigate('/instructor/projects')} className="rounded-md border border-line px-3 py-2 text-xs font-bold text-slate-700 hover:border-primary/30 hover:text-primary">
+                View all
+              </button>
             </div>
-          ) : enrolledStudents.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">
-              No students enrolled in this course yet.
-            </p>
-          ) : (
-            <div className="divide-y divide-black/5">
-              {enrolledStudents.map((student) => (
-                <div
-                  key={student.id}
-                  className="flex items-center justify-between py-2.5 text-sm"
-                >
+            {visibleProjects.length === 0 ? (
+              <p className="p-8 text-center text-sm text-slate-500">No student projects yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead>
+                    <tr className="border-b border-line bg-slate-50 text-left text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                      <th className="px-5 py-3">Project</th>
+                      <th className="px-5 py-3">Status</th>
+                      <th className="px-5 py-3">Step</th>
+                      <th className="px-5 py-3">Updated</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-line">
+                    {visibleProjects.slice(0, 10).map((project) => (
+                      <tr key={project.id} className="hover:bg-slate-50">
+                        <td className="px-5 py-3 font-bold text-slate-900">{project.title}</td>
+                        <td className="px-5 py-3"><Badge>{project.status}</Badge></td>
+                        <td className="px-5 py-3"><Badge variant={project.current_step >= 3 ? 'green' : 'yellow'}>{project.current_step}/4</Badge></td>
+                        <td className="px-5 py-3 text-slate-500">{new Date(project.updated_at).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <h2 className="text-lg font-black text-slate-950">My Courses</h2>
+            <div className="mt-4 divide-y divide-line">
+              {courses.map((course) => (
+                <div key={course.id} className="flex items-center justify-between gap-4 py-3">
                   <div>
-                    <span className="font-medium text-gray-800">
-                      {student.display_name ?? 'Unknown'}
-                    </span>
-                    {student.student_code && (
-                      <span className="text-xs text-gray-400 font-mono ml-2">
-                        {student.student_code}
-                      </span>
-                    )}
+                    <p className="font-bold text-slate-900">{course.title}</p>
+                    <p className="text-sm text-slate-500">Invite code: {course.invite_code}</p>
                   </div>
-                  {student.major && (
-                    <span className="text-xs text-gray-400">{student.major}</span>
-                  )}
+                  <button onClick={() => navigate('/instructor/courses')} className="rounded-md border border-line px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-primary/30 hover:text-primary">
+                    Edit
+                  </button>
                 </div>
               ))}
             </div>
-          )}
-        </Card>
-      )}
+          </Card>
+        </div>
 
-      {/* Quick links */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card
-          onClick={() => navigate('/instructor/courses')}
-          className="text-center hover:border-primary/30"
-        >
-          <p className="font-bold text-gray-800">Manage Courses</p>
-          <p className="text-xs text-gray-400 mt-1.5">Create courses and invite codes</p>
-        </Card>
-        <Card
-          onClick={() => navigate('/instructor/projects')}
-          className="text-center hover:border-primary/30"
-        >
-          <p className="font-bold text-gray-800">Browse Projects</p>
-          <p className="text-xs text-gray-400 mt-1.5">Filter by course</p>
-        </Card>
+        <aside className="space-y-4">
+          <Card>
+            <h2 className="font-black text-slate-950">Popular Topics</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              {[
+                ['Fairness Principles', 120],
+                ['Monetization Flow Mapping', 110],
+                ['Ad Placement Strategy', 95],
+                ['User Autonomy Ethics', 80],
+              ].map(([label, value]) => (
+                <div key={label} className="flex justify-between gap-4">
+                  <span className="font-semibold text-slate-600">{label}</span>
+                  <span className="font-black text-slate-950">{value}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="font-black text-slate-950">Users</h2>
+            {selectedCourseId === ALL_COURSES ? (
+              <p className="mt-4 text-sm leading-6 text-slate-500">Select a course to view enrolled students.</p>
+            ) : studentsLoading ? (
+              <div className="mt-4 flex justify-center"><Spinner size="sm" /></div>
+            ) : (
+              <div className="mt-4 divide-y divide-line">
+                {enrolledStudents.map((student) => (
+                  <div key={student.id} className="py-3">
+                    <p className="font-bold text-slate-900">{student.display_name ?? student.email}</p>
+                    <p className="text-sm text-slate-500">{student.student_code ?? 'Student'} {student.major ? `- ${student.major}` : ''}</p>
+                  </div>
+                ))}
+                {enrolledStudents.length === 0 && <p className="text-sm text-slate-500">No students enrolled yet.</p>}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <h2 className="font-black text-slate-950">Review Load</h2>
+            <dl className="mt-4 space-y-3 text-sm">
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">Unique Students</dt><dd className="font-black">{uniqueStudents}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">Drafts</dt><dd className="font-black">{visibleProjects.length - submitted}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">Ready to Review</dt><dd className="font-black">{submitted}</dd></div>
+            </dl>
+          </Card>
+        </aside>
       </div>
     </PageContainer>
   )

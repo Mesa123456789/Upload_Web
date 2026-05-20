@@ -1,8 +1,40 @@
-import { supabase } from '../../../lib/supabase'
+import { isSupabaseConfigured, supabase } from '../../../lib/supabase'
 import type { Course, CourseEnrollment, Profile } from '../../../lib/database.types'
+
+const now = new Date().toISOString()
+
+const demoCourses: Course[] = [
+  {
+    id: 'demo-course',
+    instructor_id: 'demo-instructor',
+    title: 'Game Design 101',
+    description: 'Ethical monetization plan for an F2P casual puzzle game.',
+    invite_code: 'EMD101',
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  },
+]
+
+const demoStudents: Profile[] = [
+  {
+    id: 'demo-student',
+    email: 'guest@emd.demo',
+    display_name: 'Guest Demo',
+    role: 'student',
+    contact_info: null,
+    student_code: 'DEMO-001',
+    major: 'Game Design',
+    year: 3,
+    created_at: now,
+    updated_at: now,
+  },
+]
 
 // Fetch all courses the current student is enrolled in
 export async function listStudentCourses(): Promise<Course[]> {
+  if (!isSupabaseConfigured) return demoCourses
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -29,6 +61,8 @@ export async function listStudentCourses(): Promise<Course[]> {
 
 // Fetch all courses created by the current instructor
 export async function listInstructorCourses(): Promise<Course[]> {
+  if (!isSupabaseConfigured) return demoCourses
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -48,6 +82,19 @@ export async function createCourse(params: {
   description?: string
   invite_code: string
 }): Promise<Course> {
+  if (!isSupabaseConfigured) {
+    return {
+      id: `demo-course-${Date.now()}`,
+      instructor_id: 'demo-instructor',
+      title: params.title,
+      description: params.description ?? null,
+      invite_code: params.invite_code,
+      is_active: true,
+      created_at: now,
+      updated_at: now,
+    }
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -70,6 +117,17 @@ export async function createCourse(params: {
 // Returns the existing enrollment if the student is already enrolled
 // rather than throwing a duplicate-key error.
 export async function enrollStudent(inviteCode: string): Promise<CourseEnrollment> {
+  if (!isSupabaseConfigured) {
+    const course = await getCourseByInviteCode(inviteCode)
+    return {
+      id: 'demo-enrollment',
+      course_id: course.id,
+      student_id: 'demo-student',
+      enrolled_via: 'invite_code',
+      enrolled_at: now,
+    }
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -116,6 +174,12 @@ export async function updateCourse(
   courseId: string,
   updates: { title?: string; description?: string | null; is_active?: boolean }
 ): Promise<Course> {
+  if (!isSupabaseConfigured) {
+    const course = demoCourses.find((item) => item.id === courseId)
+    if (!course) throw new Error('Course not found')
+    return { ...course, ...updates, updated_at: new Date().toISOString() }
+  }
+
   const { data, error } = await supabase
     .from('courses')
     .update(updates)
@@ -130,6 +194,10 @@ export async function updateCourse(
 // Instructor: get all student profiles enrolled in a course.
 // Two-step query: enrollments → profile ids → profiles (avoids nested join complexity).
 export async function listEnrolledStudents(courseId: string): Promise<Profile[]> {
+  if (!isSupabaseConfigured) {
+    return courseId === 'demo-course' ? demoStudents : []
+  }
+
   const { data: enrollments, error: enrollError } = await supabase
     .from('course_enrollments')
     .select('student_id')
@@ -153,6 +221,11 @@ export async function listEnrolledStudents(courseId: string): Promise<Profile[]>
 // Leave a course (student only) — deletes the enrollment row.
 // After this, the student will no longer see this course on their dashboard.
 export async function leaveCourse(courseId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    void courseId
+    return
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
@@ -169,6 +242,11 @@ export async function leaveCourse(courseId: string): Promise<void> {
 // and projects.course_id for this to clean up related rows automatically.
 // If cascade is not set, run the SQL migration in emd-schema.sql first.
 export async function deleteCourse(courseId: string): Promise<void> {
+  if (!isSupabaseConfigured) {
+    void courseId
+    return
+  }
+
   const { error } = await supabase
     .from('courses')
     .delete()
@@ -180,6 +258,12 @@ export async function deleteCourse(courseId: string): Promise<void> {
 // Look up a course by its invite code — throws if not found or inactive.
 // The invite code comparison is case-insensitive (always uppercased).
 export async function getCourseByInviteCode(inviteCode: string): Promise<Course> {
+  if (!isSupabaseConfigured) {
+    const course = demoCourses.find((item) => item.invite_code === inviteCode.trim().toUpperCase())
+    if (!course) throw new Error('Invite code not found')
+    return course
+  }
+
   const { data, error } = await supabase
     .from('courses')
     .select('*')

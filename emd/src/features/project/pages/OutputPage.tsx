@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import jsPDF from 'jspdf'
 import {
@@ -22,7 +22,6 @@ import StepIndicator from './components/StepIndicator'
 export default function OutputPage() {
   const { id: projectId } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const printRef = useRef<HTMLDivElement>(null)
 
   const [project, setProject] = useState<Project | null>(null)
   const [adsConfig, setAdsConfig] = useState<AdsConfig | null>(null)
@@ -33,31 +32,27 @@ export default function OutputPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [actionsOpen, setActionsOpen] = useState(false) // dropdown state
 
   useEffect(() => {
     async function load() {
       if (!projectId) return
       try {
-        const p = await getProject(projectId)
-        setProject(p)
+        const loadedProject = await getProject(projectId)
+        setProject(loadedProject)
 
-        const ac = await getAdsConfig(projectId)
-        if (ac) {
-          setAdsConfig(ac)
-          const placements = await listAdPlacements(ac.id)
-          setAdPlacements(placements)
+        const loadedAdsConfig = await getAdsConfig(projectId)
+        if (loadedAdsConfig) {
+          setAdsConfig(loadedAdsConfig)
+          setAdPlacements(await listAdPlacements(loadedAdsConfig.id))
         }
 
-        const ic = await getIapConfig(projectId)
-        if (ic) {
-          setIapConfig(ic)
-          const items = await listIapItems(ic.id)
-          setIapItems(items)
+        const loadedIapConfig = await getIapConfig(projectId)
+        if (loadedIapConfig) {
+          setIapConfig(loadedIapConfig)
+          setIapItems(await listIapItems(loadedIapConfig.id))
         }
 
-        // Mark project as step 4 (output reached)
-        if (p.current_step < 4) {
+        if (loadedProject.current_step < 4) {
           await updateProject(projectId, { current_step: 4 })
         }
       } catch (err) {
@@ -69,14 +64,12 @@ export default function OutputPage() {
     load()
   }, [projectId])
 
-  // Submit project for instructor review — flips status to 'submitted'
   async function handleSubmit() {
     if (!projectId || !project) return
     setSubmitting(true)
     setError(null)
     try {
-      const updated = await submitProject(projectId)
-      setProject(updated)
+      setProject(await submitProject(projectId))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit')
     } finally {
@@ -84,13 +77,11 @@ export default function OutputPage() {
     }
   }
 
-  // Re-submit: navigate back to setup so student can edit.
   async function handleResubmit() {
-    if (!projectId || !project) return
+    if (!projectId) return
     setSubmitting(true)
     setError(null)
     try {
-      // Mark as resubmitted first so instructor can see the intent
       await resubmitProject(projectId)
       navigate(`/project/${projectId}/setup`)
     } catch (err) {
@@ -99,13 +90,9 @@ export default function OutputPage() {
     }
   }
 
-  // Delete project — confirm first, then navigate to dashboard
   async function handleDelete() {
     if (!projectId || !project) return
-    const confirmed = window.confirm(
-      `Delete "${project.title}"? This cannot be undone.`
-    )
-    if (!confirmed) return
+    if (!window.confirm(`Delete "${project.title}"? This cannot be undone.`)) return
     setDeleting(true)
     try {
       await deleteProject(projectId)
@@ -116,10 +103,8 @@ export default function OutputPage() {
     }
   }
 
-  // Export as CSV — builds a basic summary CSV and triggers download
   function handleExportCSV() {
     if (!project) return
-
     const rows: string[][] = [
       ['Field', 'Value'],
       ['Game Title', project.title],
@@ -133,30 +118,24 @@ export default function OutputPage() {
       [],
       ['Ad Placements'],
       ['Type', 'Trigger Point', 'Frequency Cap'],
-      ...adPlacements.map((p) => [
-        p.placement_type,
-        p.trigger_point ?? '',
-        p.frequency_cap?.toString() ?? '',
+      ...adPlacements.map((placement) => [
+        placement.placement_type,
+        placement.trigger_point ?? '',
+        placement.frequency_cap?.toString() ?? '',
       ]),
       [],
       ['IAP Items'],
       ['Name', 'Type', 'Price USD', 'Description'],
-      ...iapItems.map((i) => [
-        i.name,
-        i.item_type,
-        i.price_usd?.toString() ?? '',
-        i.description ?? '',
+      ...iapItems.map((item) => [
+        item.name,
+        item.item_type,
+        item.price_usd?.toString() ?? '',
+        item.description ?? '',
       ]),
     ]
 
-    // Escape commas and quotes in CSV cells
-    const csvContent = rows
-      .map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
-      )
-      .join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -165,148 +144,291 @@ export default function OutputPage() {
     URL.revokeObjectURL(url)
   }
 
-  // Export as PDF using jsPDF — generates a structured text document and downloads it.
   function handleExportPDF() {
     if (!project) return
-
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
     const pageWidth = doc.internal.pageSize.getWidth()
-    const margin = 16
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const margin = 14
     const contentWidth = pageWidth - margin * 2
-    let y = 20
+    const orange: [number, number, number] = [245, 130, 32]
+    const ink: [number, number, number] = [35, 31, 27]
+    const muted: [number, number, number] = [76, 93, 116]
+    const lineColor: [number, number, number] = [225, 213, 201]
+    const warm: [number, number, number] = [247, 241, 234]
+    const panel: [number, number, number] = [252, 249, 245]
+    let y = 16
 
-    function addHeading(text: string) {
-      if (y > 260) { doc.addPage(); y = 20 }
-      doc.setFontSize(14)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(40, 40, 40)
-      doc.text(text, margin, y)
-      y += 7
-      doc.setDrawColor(200, 200, 200)
-      doc.line(margin, y, margin + contentWidth, y)
-      y += 5
+    const value = (text: string | number | null | undefined, fallback = 'Not set') => {
+      if (text === null || text === undefined || text === '') return fallback
+      return String(text)
+    }
+    const list = (items: string[] | null | undefined) => items?.join(', ') || 'Not set'
+    const money = (amount: number | null) => amount == null ? 'Free / not specified' : `$${amount.toFixed(2)}`
+    const safeFileName = project.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'project'
+    const exportDate = new Date().toISOString().slice(0, 10)
+    const totalItems = adPlacements.length + iapItems.length
+    const pdfAdPercent = totalItems ? Math.round((adPlacements.length / totalItems) * 100) : 0
+    const pdfIapPercent = totalItems ? 100 - pdfAdPercent : 0
+    const missingCaps = adPlacements.filter((placement) => placement.frequency_cap == null).length
+    const interstitials = adPlacements.filter((placement) => placement.placement_type === 'interstitial').length
+    const riskScore = Math.min(10, missingCaps * 3 + interstitials * 2 + Math.max(0, iapItems.length - 3))
+    const riskLabel = riskScore >= 7 ? 'High' : riskScore >= 4 ? 'Medium' : 'Low'
+
+    function setText(color: [number, number, number] = ink) {
+      doc.setTextColor(color[0], color[1], color[2])
     }
 
-    function addField(label: string, value: string) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(100, 100, 100)
-      doc.text(`${label}:`, margin, y)
+    function addPageIfNeeded(height = 24) {
+      if (y + height <= pageHeight - 14) return
+      doc.addPage()
+      y = 16
+      footer()
+    }
+
+    function footer() {
+      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
+      doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(30, 30, 30)
-      const lines = doc.splitTextToSize(value, contentWidth - 35)
-      doc.text(lines, margin + 35, y)
-      y += lines.length * 5.5
-    }
-
-    function addParagraph(text: string) {
-      if (y > 270) { doc.addPage(); y = 20 }
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(60, 60, 60)
-      const lines = doc.splitTextToSize(text, contentWidth)
-      doc.text(lines, margin, y)
-      y += lines.length * 5.5 + 2
-    }
-
-    // Title
-    doc.setFontSize(22)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(30, 30, 30)
-    doc.text('Monetization Plan', margin, y)
-    y += 8
-
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(120, 120, 120)
-    doc.text(`EMD — Ethical Monetization Designer`, margin, y)
-    y += 5
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, margin, y)
-    y += 12
-
-    // Game Overview
-    addHeading('Game Overview')
-    addField('Game Title', project.title)
-    if (project.genre?.length) addField('Genre', project.genre.join(', '))
-    if (project.platform?.length) addField('Platform', project.platform.join(', '))
-    if (project.target_audience) addField('Target Audience', project.target_audience)
-    if (project.core_mechanic) addField('Core Mechanic', project.core_mechanic)
-    if (project.session_length) addField('Session Length', project.session_length)
-    y += 4
-
-    // Ads Strategy
-    addHeading('Ads Strategy')
-    if (adsConfig) {
-      if (adsConfig.ad_network) addField('Ad Network', adsConfig.ad_network)
-      if (adsConfig.revenue_model) addField('Revenue Model', adsConfig.revenue_model.toUpperCase())
-      if (adsConfig.notes) addParagraph(`Notes: ${adsConfig.notes}`)
-    }
-    if (adPlacements.length > 0) {
-      y += 2
-      doc.setFontSize(10)
-      doc.setFont('helvetica', 'bold')
-      doc.setTextColor(60, 60, 60)
-      doc.text('Ad Placements:', margin, y)
-      y += 5
-      adPlacements.forEach((p) => {
-        if (y > 270) { doc.addPage(); y = 20 }
-        const detail = `${p.placement_type.toUpperCase()} · Trigger: ${p.trigger_point ?? 'N/A'} · Freq Cap: ${p.frequency_cap ?? 'None'}`
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(40, 40, 40)
-        const lines = doc.splitTextToSize(`  • ${detail}`, contentWidth)
-        doc.text(lines, margin, y)
-        y += lines.length * 5.5
-      })
-    } else {
-      addParagraph('No ad placements configured.')
-    }
-    y += 4
-
-    // IAP Catalog
-    addHeading('IAP Catalog')
-    if (iapConfig?.store) addField('Store', iapConfig.store.replace('_', ' '))
-    if (iapItems.length > 0) {
-      y += 2
-      iapItems.forEach((item) => {
-        if (y > 270) { doc.addPage(); y = 20 }
-        const price = item.price_usd != null ? `$${item.price_usd}` : 'N/A'
-        const summary = `${item.name} (${item.item_type}) — ${price}`
-        doc.setFontSize(10)
-        doc.setFont('helvetica', 'bold')
-        doc.setTextColor(40, 40, 40)
-        doc.text(`  • ${summary}`, margin, y)
-        y += 5
-        if (item.description) {
-          doc.setFont('helvetica', 'normal')
-          doc.setTextColor(90, 90, 90)
-          const lines = doc.splitTextToSize(`    ${item.description}`, contentWidth - 6)
-          doc.text(lines, margin, y)
-          y += lines.length * 5 + 1
-        }
-      })
-    } else {
-      addParagraph('No IAP items configured.')
-    }
-    y += 4
-
-    // Footer on every page
-    const totalPages = doc.getNumberOfPages()
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i)
       doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(160, 160, 160)
-      doc.text(
-        `EMD — Ethical Monetization Designer · Page ${i} of ${totalPages}`,
-        margin,
-        doc.internal.pageSize.getHeight() - 8
-      )
+      setText(muted)
+      doc.text('Generated by Ethical Monetization Designer', margin, pageHeight - 5)
+      doc.text(`Page ${doc.getNumberOfPages()}`, pageWidth - margin, pageHeight - 5, { align: 'right' })
     }
 
-    const filename = `emd-${project.title.replace(/\s+/g, '-').toLowerCase()}.pdf`
-    doc.save(filename)
+    function title(text: string, size = 13) {
+      addPageIfNeeded(14)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(size)
+      setText(ink)
+      doc.text(text, margin, y)
+      y += 5
+      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
+      doc.line(margin, y, pageWidth - margin, y)
+      y += 6
+    }
+
+    function paragraph(text: string, x: number, width: number, size = 9, color = muted) {
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(size)
+      setText(color)
+      const lines = doc.splitTextToSize(text, width)
+      doc.text(lines, x, y)
+      y += lines.length * 4.8
+    }
+
+    function card(x: number, top: number, width: number, height: number) {
+      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
+      doc.setFillColor(panel[0], panel[1], panel[2])
+      doc.roundedRect(x, top, width, height, 3, 3, 'FD')
+    }
+
+    function keyValue(label: string, detail: string, x: number, top: number, width: number) {
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+      setText(muted)
+      doc.text(label.toUpperCase(), x, top)
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'bold')
+      setText(ink)
+      const lines = doc.splitTextToSize(detail, width)
+      doc.text(lines, x, top + 5)
+      return 8 + lines.length * 4
+    }
+
+    function table(headers: string[], rows: string[][], widths: number[]) {
+      const startX = margin
+      const headerHeight = 9
+      addPageIfNeeded(headerHeight + 10)
+      doc.setFillColor(warm[0], warm[1], warm[2])
+      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
+      doc.rect(startX, y, contentWidth, headerHeight, 'FD')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(8.5)
+      setText(ink)
+      let x = startX
+      headers.forEach((header, index) => {
+        doc.text(header, x + 2, y + 5.8)
+        x += widths[index]
+      })
+      y += headerHeight
+
+      if (rows.length === 0) {
+        rows = [['No data added yet.', '', '', ''].slice(0, headers.length)]
+      }
+
+      rows.forEach((row, rowIndex) => {
+        const wrapped = row.map((cell, index) => doc.splitTextToSize(value(cell, '-'), widths[index] - 4))
+        const rowHeight = Math.max(10, ...wrapped.map((lines) => lines.length * 4 + 5))
+        addPageIfNeeded(rowHeight + 4)
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(255, 255, 255)
+        } else {
+          doc.setFillColor(252, 250, 247)
+        }
+        doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
+        doc.rect(startX, y, contentWidth, rowHeight, 'FD')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8.5)
+        setText(muted)
+        x = startX
+        wrapped.forEach((lines, index) => {
+          doc.text(lines, x + 2, y + 5.2)
+          x += widths[index]
+        })
+        y += rowHeight
+      })
+      y += 5
+    }
+
+    doc.setFillColor(warm[0], warm[1], warm[2])
+    doc.rect(0, 0, pageWidth, 38, 'F')
+    doc.setFillColor(orange[0], orange[1], orange[2])
+    doc.roundedRect(margin, 12, 16, 16, 3, 3, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(11)
+    doc.setTextColor(255, 255, 255)
+    doc.text('EMD', margin + 8, 22, { align: 'center' })
+    doc.setFontSize(19)
+    setText(ink)
+    doc.text(project.title, margin + 22, 18)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'normal')
+    setText(muted)
+    doc.text('Ethical Monetization Designer - Monetization Overview', margin + 22, 25)
+    doc.text(`Export date: ${exportDate}`, pageWidth - margin, 18, { align: 'right' })
+    doc.text(`Status: ${project.status.replace('_', ' ')}`, pageWidth - margin, 25, { align: 'right' })
+    y = 48
+
+    card(margin, y, 118, 50)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(15)
+    setText(ink)
+    doc.text('Summary', margin + 5, y + 9)
+    const summaryTop = y + 18
+    const summary = `${project.title} is a ${list(project.platform)} ${list(project.genre)} game for ${value(project.target_audience, 'a defined audience')}. The monetization approach uses ${adPlacements.length} ad placement(s) and ${iapItems.length} in-app purchase item(s), with a focus on optional value, clear player benefit, and pressure control.`
+    y = summaryTop
+    paragraph(summary, margin + 5, 108, 9)
+
+    y = 48
+    card(138, y, 58, 50)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(13)
+    setText(ink)
+    doc.text('Revenue Mix', 143, y + 9)
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Ads ${pdfAdPercent}%`, 143, y + 22)
+    doc.text(`IAP ${pdfIapPercent}%`, 174, y + 22)
+    doc.setFillColor(236, 231, 224)
+    doc.roundedRect(143, y + 28, 46, 5, 2, 2, 'F')
+    doc.setFillColor(orange[0], orange[1], orange[2])
+    doc.roundedRect(143, y + 28, Math.max(2, 46 * pdfAdPercent / 100), 5, 2, 2, 'F')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    setText(muted)
+    doc.text(`Risk score: ${riskLabel} (${riskScore}/10)`, 143, y + 40)
+    doc.text(`Store: ${value(iapConfig?.store?.replace('_', ' '), 'Not configured')}`, 143, y + 45)
+
+    y = 108
+    title('Project Context')
+    const contextTop = y
+    card(margin, contextTop, contentWidth, 36)
+    const col = contentWidth / 4
+    keyValue('Genre', list(project.genre), margin + 5, contextTop + 9, col - 10)
+    keyValue('Platform', list(project.platform), margin + col + 5, contextTop + 9, col - 10)
+    keyValue('Audience', value(project.target_audience), margin + col * 2 + 5, contextTop + 9, col - 10)
+    keyValue('Session', value(project.session_length), margin + col * 3 + 5, contextTop + 9, col - 10)
+    y = contextTop + 45
+    title('Core Loop')
+    paragraph(value(project.core_mechanic, 'No core loop has been described yet.'), margin, contentWidth, 10)
+    y += 5
+
+    title('Monetization Flow')
+    const flowTop = y
+    const stages = ['Entry', 'Gameplay', 'Outcome', 'Meta']
+    stages.forEach((stage, index) => {
+      const x = margin + index * 45
+      doc.setFillColor(255, 255, 255)
+      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
+      doc.circle(x + 10, flowTop + 10, 8, 'FD')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      setText(orange)
+      doc.text(String(index + 1), x + 10, flowTop + 13, { align: 'center' })
+      setText(ink)
+      doc.text(stage, x + 2, flowTop + 25)
+      if (index < stages.length - 1) {
+        doc.setDrawColor(orange[0], orange[1], orange[2])
+        doc.line(x + 22, flowTop + 10, x + 39, flowTop + 10)
+        doc.line(x + 36, flowTop + 7, x + 39, flowTop + 10)
+        doc.line(x + 36, flowTop + 13, x + 39, flowTop + 10)
+      }
+    })
+    y = flowTop + 34
+
+    title('Ads Strategy')
+    table(
+      ['Type', 'Trigger / moment', 'Frequency cap', 'Notes'],
+      adPlacements.map((placement) => [
+        placement.placement_type,
+        value(placement.trigger_point, 'No trigger set'),
+        placement.frequency_cap == null ? 'Missing' : `${placement.frequency_cap} per session`,
+        value(placement.notes, 'No notes'),
+      ]),
+      [34, 64, 35, 39]
+    )
+
+    title('IAP Catalog')
+    table(
+      ['Item', 'Type', 'Price', 'Benefit / description'],
+      iapItems.map((item) => [
+        item.name,
+        item.item_type.replace('_', ' '),
+        money(item.price_usd),
+        value(item.description, 'No benefit described'),
+      ]),
+      [42, 38, 28, 64]
+    )
+
+    title('Configuration Notes')
+    table(
+      ['Area', 'Field', 'Value'],
+      [
+        ['Ads', 'Ad network', value(adsConfig?.ad_network)],
+        ['Ads', 'Revenue model', value(adsConfig?.revenue_model)],
+        ['Ads', 'Notes', value(adsConfig?.notes, 'No notes')],
+        ['IAP', 'Store', value(iapConfig?.store?.replace('_', ' '))],
+        ['IAP', 'Currency', value(iapConfig?.currency)],
+        ['IAP', 'Notes', value(iapConfig?.notes, 'No notes')],
+      ],
+      [32, 45, 95]
+    )
+
+    title('Case for Ethics')
+    const ethicsRows = [
+      ['Frequency caps', missingCaps === 0 ? 'Pass' : `${missingCaps} placement(s) need caps`, 'Caps limit ad pressure and protect player autonomy.'],
+      ['Optional value', 'Pass', 'Rewarded ads and IAP should remain optional, not required for normal progress.'],
+      ['Price clarity', iapItems.every((item) => item.price_usd != null && item.description) ? 'Pass' : 'Needs review', 'Every paid item should show price and benefit clearly.'],
+      ['Pressure level', riskLabel, 'Interstitials and missing caps increase pressure risk.'],
+    ]
+    table(['Check', 'Result', 'Explanation'], ethicsRows, [42, 38, 92])
+
+    title('Instructor Review')
+    table(
+      ['Field', 'Value'],
+      [
+        ['Grade', project.grade == null ? 'Not graded' : `${project.grade}/100`],
+        ['Comment', value(project.instructor_comment, 'No instructor comment yet')],
+        ['Submitted at', value(project.submitted_at, 'Not submitted')],
+        ['Graded at', value(project.graded_at, 'Not graded')],
+        ['Last updated', value(project.updated_at)],
+      ],
+      [42, 130]
+    )
+
+    footer()
+    doc.save(`emd-${safeFileName}.pdf`)
   }
 
   if (loading) {
@@ -322,395 +444,142 @@ export default function OutputPage() {
   if (!project) {
     return (
       <PageContainer>
-        <p className="text-red-600 text-sm">{error ?? 'Project not found'}</p>
+        <p className="text-sm text-red-600">{error ?? 'Project not found'}</p>
       </PageContainer>
     )
   }
 
+  const adPercent = adPlacements.length || iapItems.length ? Math.round((adPlacements.length / Math.max(1, adPlacements.length + iapItems.length)) * 100) : 0
+  const iapPercent = adPlacements.length || iapItems.length ? 100 - adPercent : 0
+
   return (
     <PageContainer>
-      {/* Hide step indicator and action buttons when printing */}
       <div className="no-print">
         <StepIndicator current={4} />
-
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Output & Pitch</h1>
-            <p className="text-sm text-gray-500 leading-6 mt-1">Your complete Monetization Plan</p>
-          </div>
-
-          {/* Actions dropdown — Export PDF, Export CSV, Delete */}
-          <div className="relative">
-            <button
-              onClick={() => setActionsOpen((o) => !o)}
-              className="rounded-full border-2 border-gray-200 px-5 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
-            >
-              Actions
-              <span className="text-xs">{actionsOpen ? '▲' : '▼'}</span>
-            </button>
-            {actionsOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-background-card border border-black/5 rounded-2xl shadow-lg z-10 overflow-hidden">
-                <button
-                  onClick={() => { handleExportPDF(); setActionsOpen(false) }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-black/5 transition-colors"
-                >
-                  Export PDF
-                </button>
-                <button
-                  onClick={() => { handleExportCSV(); setActionsOpen(false) }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-black/5 transition-colors"
-                >
-                  Export CSV
-                </button>
-                <div className="border-t border-black/5" />
-                <button
-                  onClick={() => { setActionsOpen(false); handleDelete() }}
-                  disabled={deleting}
-                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 transition-colors"
-                >
-                  {deleting ? 'Deleting...' : 'Delete Project'}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
-            {error}
-          </div>
-        )}
       </div>
 
-      {/* Printable content */}
-      <div ref={printRef} className="space-y-6">
-        {/* Header for print only */}
-        <div className="print:block hidden mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Monetization Plan</h1>
-          <p className="text-gray-500">EMD — Ethical Monetization Designer</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">Output & Pitch</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500">Export-ready monetization overview for instructor review.</p>
         </div>
-
-        {/* Game Overview */}
-        <Card>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-            Game Overview
-          </p>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500 block mb-1">Game Title</span>
-              <span className="font-bold text-gray-900 text-lg">{project.title}</span>
-            </div>
-            {project.genre && project.genre.length > 0 && (
-              <div>
-                <span className="text-gray-500 block mb-1">Genre</span>
-                <div className="flex flex-wrap gap-1">
-                  {project.genre.map((g) => (
-                    <Badge key={g} variant="blue">{g}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            {project.platform && project.platform.length > 0 && (
-              <div>
-                <span className="text-gray-500 block mb-1">Platform</span>
-                <div className="flex flex-wrap gap-1">
-                  {project.platform.map((p) => (
-                    <Badge key={p} variant="default">{p}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            {project.target_audience && (
-              <div>
-                <span className="text-gray-500 block mb-1">Target Audience</span>
-                <span className="text-gray-900">{project.target_audience}</span>
-              </div>
-            )}
-            {project.core_mechanic && (
-              <div>
-                <span className="text-gray-500 block mb-1">Core Mechanic</span>
-                <span className="text-gray-900">{project.core_mechanic}</span>
-              </div>
-            )}
-            {project.session_length && (
-              <div>
-                <span className="text-gray-500 block mb-1">Session Length</span>
-                <span className="text-gray-900">{project.session_length}</span>
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* Revenue Mix */}
-        <Card>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-            Revenue Mix
-          </p>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="bg-blue-50 rounded-2xl p-4 text-center">
-              <p className="text-3xl font-bold text-blue-700">
-                {adPlacements.length > 0 ? '50%' : '0%'}
-              </p>
-              <p className="text-sm text-blue-600 mt-1 font-medium">Advertising</p>
-              <p className="text-xs text-gray-400 mt-2">
-                {adPlacements.length} placement{adPlacements.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-            <div className="bg-primary/10 rounded-2xl p-4 text-center">
-              <p className="text-3xl font-bold text-primary">
-                {iapItems.length > 0 ? '50%' : '0%'}
-              </p>
-              <p className="text-sm text-primary mt-1 font-medium">In-App Purchase</p>
-              <p className="text-xs text-gray-400 mt-2">
-                {iapItems.length} item{iapItems.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Ads Summary */}
-        <Card>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-            Ads Strategy
-          </p>
-          {adsConfig && (
-            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-              {adsConfig.ad_network && (
-                <div>
-                  <span className="text-gray-500">Network:</span>{' '}
-                  <span className="text-gray-900 font-medium">{adsConfig.ad_network}</span>
-                </div>
-              )}
-              {adsConfig.revenue_model && (
-                <div>
-                  <span className="text-gray-500">Model:</span>{' '}
-                  <span className="text-gray-900 font-medium uppercase">{adsConfig.revenue_model}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {adPlacements.length === 0 ? (
-            <p className="text-sm text-gray-400">No ad placements configured.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-black/5">
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Type</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Trigger</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Freq Cap</th>
-                </tr>
-              </thead>
-              <tbody>
-                {adPlacements.map((p) => (
-                  <tr key={p.id} className="border-b border-black/5 last:border-0">
-                    <td className="py-2.5">
-                      <Badge variant={p.placement_type === 'rewarded' ? 'green' : p.placement_type === 'interstitial' ? 'yellow' : 'blue'}>
-                        {p.placement_type}
-                      </Badge>
-                    </td>
-                    <td className="py-2.5 text-gray-700">{p.trigger_point ?? '—'}</td>
-                    <td className="py-2.5 text-gray-500">{p.frequency_cap ?? 'None'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-
-        {/* IAP Summary */}
-        <Card>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-            IAP Catalog
-          </p>
-          {iapConfig && iapConfig.store && (
-            <p className="text-sm text-gray-500 mb-3">
-              Store: <span className="font-bold text-gray-700">{iapConfig.store.replace('_', ' ')}</span>
-            </p>
-          )}
-          {iapItems.length === 0 ? (
-            <p className="text-sm text-gray-400">No IAP items configured.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-black/5">
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Name</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Type</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Price</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-2">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                {iapItems.map((item) => (
-                  <tr key={item.id} className="border-b border-black/5 last:border-0">
-                    <td className="py-2.5 font-medium text-gray-800">{item.name}</td>
-                    <td className="py-2.5">
-                      <Badge variant="purple">{item.item_type}</Badge>
-                    </td>
-                    <td className="py-2.5 text-gray-700">
-                      {item.price_usd != null ? `$${item.price_usd}` : '—'}
-                    </td>
-                    <td className="py-2.5 text-gray-500">{item.description ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-
-        {/* Ethics placeholder */}
-        <Card className="border-primary/20">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-3">
-            Ethics Summary
-          </p>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="text-2xl font-bold text-primary">—</div>
-            <div>
-              <p className="text-sm font-bold text-gray-700">Fairness Level</p>
-              <p className="text-xs text-gray-400">Pending AI analysis</p>
-            </div>
-          </div>
-          <ul className="text-sm text-gray-500 space-y-1.5 list-disc list-inside leading-6">
-            <li>No aggressive forced interstitials between every level</li>
-            <li>All purchases clearly labeled with value proposition</li>
-            <li>Rewarded ads are opt-in by player choice</li>
-          </ul>
-        </Card>
+        <div className="no-print flex flex-wrap gap-2">
+          <button onClick={handleExportCSV} className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50">CSV</button>
+          <button onClick={handleExportPDF} className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50">PDF</button>
+          <button onClick={handleDelete} disabled={deleting} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50">
+            {deleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
 
-      {/* Feedback from Instructor */}
-      <Card>
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          Feedback from Instructor
-        </p>
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-        {project.status === 'graded' && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl font-bold text-green-600">
-                {project.grade ?? '—'}
-                <span className="text-lg font-normal text-gray-400">/100</span>
-              </div>
-              <Badge variant="green">Graded</Badge>
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          <Card>
+            <div className="border-b border-line pb-5">
+              <p className="text-sm font-bold text-slate-500">Monetization Overview</p>
+              <h2 className="mt-2 text-4xl font-black tracking-tight text-slate-950">{project.title}</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+                {project.title} is a {(project.platform ?? ['game']).join(', ')} {(project.genre ?? ['F2P']).join(', ')} game for {project.target_audience ?? 'a defined audience'}.
+                The plan uses opt-in value moments and avoids coercive pressure patterns.
+              </p>
             </div>
-            {project.graded_at && (
-              <p className="text-xs text-gray-400">
-                Graded on {new Date(project.graded_at).toLocaleDateString()}
+
+            <div className="mt-5 grid gap-4 md:grid-cols-4">
+              {['Entry', 'Gameplay', 'Outcome', 'Meta'].map((stage) => (
+                <div key={stage} className="rounded-lg bg-slate-50 p-4 text-center">
+                  <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white font-black text-primary ring-1 ring-line">
+                    {stage[0]}
+                  </div>
+                  <p className="text-sm font-black text-slate-900">{stage}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="mb-4 text-xl font-black text-slate-950">Monetization Flow</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              {adPlacements.map((placement) => (
+                <div key={placement.id} className="rounded-lg border border-line bg-slate-50 p-4">
+                  <Badge variant={placement.placement_type === 'interstitial' ? 'yellow' : 'green'}>{placement.placement_type}</Badge>
+                  <p className="mt-3 font-black text-slate-950">{placement.trigger_point ?? 'Ad placement'}</p>
+                  <p className="mt-1 text-sm text-slate-500">Frequency cap: {placement.frequency_cap ?? 'Not set'}</p>
+                </div>
+              ))}
+              {iapItems.map((item) => (
+                <div key={item.id} className="rounded-lg border border-line bg-slate-50 p-4">
+                  <Badge variant="purple">{item.item_type}</Badge>
+                  <p className="mt-3 font-black text-slate-950">{item.name}</p>
+                  <p className="mt-1 text-sm text-slate-500">{item.price_usd != null ? `$${item.price_usd}` : 'Free'} - {item.description ?? 'Benefit not specified'}</p>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+
+        <aside className="space-y-4">
+          <Card>
+            <h2 className="font-black text-slate-950">Revenue Mix</h2>
+            {iapConfig?.store && (
+              <p className="mt-2 text-sm font-semibold capitalize text-slate-500">
+                Store: {iapConfig.store.replace('_', ' ')}
               </p>
             )}
-            {project.instructor_comment && (
-              <div className="bg-background-main border border-black/5 rounded-2xl p-4 text-sm text-gray-700 whitespace-pre-line">
-                {project.instructor_comment}
+            <div className="mt-4 space-y-4">
+              <div>
+                <div className="mb-2 flex justify-between text-sm font-bold"><span>Ads</span><span>{adPercent}%</span></div>
+                <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-accent" style={{ width: `${adPercent}%` }} /></div>
               </div>
+              <div>
+                <div className="mb-2 flex justify-between text-sm font-bold"><span>IAP</span><span>{iapPercent}%</span></div>
+                <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-primary" style={{ width: `${iapPercent}%` }} /></div>
+              </div>
+            </div>
+          </Card>
+
+          <Card>
+            <h2 className="font-black text-slate-950">Case for Ethics</h2>
+            <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
+              <li>Frequency caps protect player autonomy by limiting ad pressure.</li>
+              <li>IAP offers remain optional with visible price and benefit.</li>
+              <li>Rewarded ads are presented as player-chosen value exchanges.</li>
+            </ul>
+          </Card>
+
+          <Card>
+            <h2 className="font-black text-slate-950">Feedback from Instructor</h2>
+            <div className="mt-4">
+              {project.status === 'graded' && <Badge variant="green">Grade {project.grade ?? '-'}/100</Badge>}
+              {project.status === 'returned' && <Badge variant="red">Returned for Revision</Badge>}
+              {(project.status === 'submitted' || project.status === 'resubmitted') && <Badge variant="blue">Pending Review</Badge>}
+              {project.status === 'draft' && <p className="text-sm text-slate-500">Submit your project to receive feedback.</p>}
+              {project.instructor_comment && (
+                <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">{project.instructor_comment}</p>
+              )}
+            </div>
+          </Card>
+
+          <div className="no-print sticky bottom-4 flex gap-3 rounded-lg border border-line bg-white p-3 shadow-lg">
+            <button onClick={() => navigate(`/project/${projectId}/guardrail`)} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
+              Back
+            </button>
+            {project.status === 'draft' || project.status === 'returned' ? (
+              <button onClick={handleSubmit} disabled={submitting} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
+                {submitting ? 'Submitting...' : 'Submit'}
+              </button>
+            ) : (
+              <button onClick={handleResubmit} disabled={submitting || project.status === 'under_review' || project.status === 'graded'} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
+                {submitting ? 'Opening...' : 'Edit Again'}
+              </button>
             )}
           </div>
-        )}
-
-        {project.status === 'under_review' && (
-          <div className="flex items-center gap-3 bg-primary/5 border border-primary/20 rounded-2xl p-4">
-            <Badge variant="purple">Under Review</Badge>
-            <p className="text-sm text-primary">
-              Your project is being reviewed by the instructor. You cannot edit it right now.
-            </p>
-          </div>
-        )}
-
-        {(project.status === 'submitted' || project.status === 'resubmitted') && (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Badge variant="blue">
-              {project.status === 'submitted' ? 'Submitted' : 'Re-submitted'}
-            </Badge>
-            <span>Pending instructor review</span>
-          </div>
-        )}
-
-        {project.status === 'returned' && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="red">Returned for Revision</Badge>
-            </div>
-            {project.instructor_comment && (
-              <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 text-sm text-orange-800 whitespace-pre-line">
-                {project.instructor_comment}
-              </div>
-            )}
-            <p className="text-xs text-gray-400">
-              Edit your project and submit again when ready.
-            </p>
-          </div>
-        )}
-
-        {project.status === 'draft' && (
-          <p className="text-sm text-gray-400">Submit your project to receive feedback.</p>
-        )}
-      </Card>
-
-      {/* Bottom action row */}
-      <div className="no-print flex items-center justify-between">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="rounded-full border-2 border-gray-200 px-6 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          Back to Dashboard
-        </button>
-
-        {/* Submit / re-submit area — behavior depends on current status */}
-        <div className="flex items-center gap-3">
-          {/* draft → first submit */}
-          {project.status === 'draft' && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="rounded-full bg-green-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? 'Submitting...' : 'Submit'}
-            </button>
-          )}
-
-          {/* submitted → can re-edit */}
-          {project.status === 'submitted' && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-green-600 font-bold">Submitted</span>
-              <button
-                onClick={handleResubmit}
-                disabled={submitting}
-                className="rounded-full border-2 border-orange-300 px-5 py-2 text-sm font-bold text-orange-600 hover:bg-orange-50 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? '...' : 'Re-submit'}
-              </button>
-            </div>
-          )}
-
-          {/* resubmitted → can keep re-editing */}
-          {project.status === 'resubmitted' && (
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-blue-600 font-bold">Re-submitted</span>
-              <button
-                onClick={handleResubmit}
-                disabled={submitting}
-                className="rounded-full border-2 border-orange-300 px-5 py-2 text-sm font-bold text-orange-600 hover:bg-orange-50 disabled:opacity-50 transition-colors"
-              >
-                {submitting ? '...' : 'Submit Again'}
-              </button>
-            </div>
-          )}
-
-          {/* returned → student needs to fix and submit fresh */}
-          {project.status === 'returned' && (
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="rounded-full bg-green-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {submitting ? 'Submitting...' : 'Submit'}
-            </button>
-          )}
-
-          {/* under_review / graded → read-only, no action */}
-          {(project.status === 'under_review' || project.status === 'graded') && (
-            <span className="text-sm text-gray-400 italic">Read-only</span>
-          )}
-        </div>
+        </aside>
       </div>
     </PageContainer>
   )

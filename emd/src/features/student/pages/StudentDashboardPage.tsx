@@ -9,7 +9,6 @@ import Card from '../../../shared/components/Card'
 import Badge from '../../../shared/components/Badge'
 import Spinner from '../../../shared/components/Spinner'
 
-// Map current_step number to a readable label and badge variant
 function getStepInfo(step: number): { label: string; variant: 'blue' | 'yellow' | 'purple' | 'green' } {
   switch (step) {
     case 1: return { label: 'Setup', variant: 'blue' }
@@ -20,7 +19,6 @@ function getStepInfo(step: number): { label: string; variant: 'blue' | 'yellow' 
   }
 }
 
-// Navigate to the correct step page based on current_step
 function getProjectPath(projectId: string, step: number): string {
   switch (step) {
     case 1: return `/project/${projectId}/setup`
@@ -36,7 +34,6 @@ interface CourseWithProjects {
   projects: Project[]
 }
 
-// Sentinel value for the filter dropdown — "show all courses"
 const ALL_FILTER = '__ALL__'
 
 export default function StudentDashboardPage() {
@@ -46,8 +43,6 @@ export default function StudentDashboardPage() {
   const [courseData, setCourseData] = useState<CourseWithProjects[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  // Filter by course — only visible when student is in multiple courses
   const [filterCourseId, setFilterCourseId] = useState<string>(ALL_FILTER)
 
   async function loadData() {
@@ -57,15 +52,12 @@ export default function StudentDashboardPage() {
 
     try {
       const courses = await listStudentCourses()
-
-      // Fetch each course's projects in parallel — faster than sequential loop
       const results = await Promise.all(
         courses.map(async (course) => {
           const projects = await listProjectsByCourseAndOwner(course.id, user.id)
           return { course, projects }
         })
       )
-
       setCourseData(results)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard')
@@ -76,8 +68,6 @@ export default function StudentDashboardPage() {
 
   useEffect(() => {
     loadData()
-    // Depend on user.id (stable string) not user object — prevents re-fetch on
-    // token refresh events where Supabase creates a new user object reference.
   }, [user?.id])
 
   if (loading) {
@@ -90,148 +80,160 @@ export default function StudentDashboardPage() {
     )
   }
 
-  // Apply course filter — if ALL_FILTER, show everything
   const visibleCourseData =
     filterCourseId === ALL_FILTER
       ? courseData
       : courseData.filter((cd) => cd.course.id === filterCourseId)
-
-  // Only show the filter dropdown when enrolled in 2+ courses
+  const projects = visibleCourseData.flatMap((item) => item.projects)
+  const activeProjects = projects.length
+  const readyProjects = projects.filter((project) => project.current_step >= 4).length
+  const submittedProjects = projects.filter((project) => project.status !== 'draft').length
   const showFilter = courseData.length >= 2
 
   return (
     <PageContainer>
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">My Projects</h1>
-          <p className="text-sm text-gray-500 leading-6 mt-1">
-            Your enrolled courses and monetization projects
+          <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-primary">Student Workspace</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">Dashboard</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            Overview of your courses, projects, and guardrail progress.
           </p>
         </div>
-
-        {/* Join a Course — primary action */}
-        <button
-          onClick={() => navigate('/join')}
-          className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-light transition-colors"
-        >
-          + Join a Course
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {showFilter && (
+            <select
+              value={filterCourseId}
+              onChange={(event) => setFilterCourseId(event.target.value)}
+              className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value={ALL_FILTER}>All Courses</option>
+              {courseData.map(({ course }) => (
+                <option key={course.id} value={course.id}>{course.title}</option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => navigate('/join')}
+            className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            Join Course
+          </button>
+        </div>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Course filter — only shown when student is in multiple courses */}
-      {showFilter && (
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold uppercase tracking-[0.18em] text-primary whitespace-nowrap">
-            Filter
-          </label>
-          <select
-            value={filterCourseId}
-            onChange={(e) => setFilterCourseId(e.target.value)}
-            className="border border-black/10 rounded-full px-4 py-1.5 text-sm bg-background-card focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-            <option value={ALL_FILTER}>All Courses</option>
-            {courseData.map(({ course }) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Course list */}
-      {courseData.length === 0 ? (
-        <Card className="text-center py-12">
-          <p className="text-gray-500 mb-2 text-sm">You haven't joined any courses yet.</p>
-          <p className="text-gray-400 text-sm mb-6">
-            Click "Join a Course" to get started.
-          </p>
-          <button
-            onClick={() => navigate('/join')}
-            className="rounded-full bg-primary px-6 py-2.5 text-sm font-bold text-white hover:bg-primary-light transition-colors"
-          >
-            Join a Course
-          </button>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Active Projects</p>
+          <p className="mt-3 text-4xl font-black text-slate-950">{activeProjects}</p>
         </Card>
-      ) : visibleCourseData.length === 0 ? (
-        // Filter applied but the selected course has no results
-        <Card className="text-center py-10">
-          <p className="text-gray-400 text-sm">No data for the selected filter.</p>
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Output Ready</p>
+          <p className="mt-3 text-4xl font-black text-emerald-700">{readyProjects}</p>
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Submitted</p>
+          <p className="mt-3 text-4xl font-black text-sky-700">{submittedProjects}</p>
+        </Card>
+        <Card>
+          <p className="text-sm font-semibold text-slate-500">Courses</p>
+          <p className="mt-3 text-4xl font-black text-slate-950">{visibleCourseData.length}</p>
+        </Card>
+      </div>
+
+      {courseData.length === 0 ? (
+        <Card className="text-center">
+          <div className="mx-auto max-w-md py-8">
+            <h2 className="text-xl font-black text-slate-950">No courses yet</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Join a course to start creating monetization plans.
+            </p>
+            <button
+              onClick={() => navigate('/join')}
+              className="mt-6 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-light"
+            >
+              Join a Course
+            </button>
+          </div>
         </Card>
       ) : (
-        <div className="space-y-8">
-          {visibleCourseData.map(({ course, projects }) => (
-            <div key={course.id}>
-              {/* Course section header */}
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-                    Course
-                  </p>
-                  <h2 className="text-lg font-bold tracking-tight text-gray-900">
-                    {course.title}
-                  </h2>
-                  {course.description && (
-                    <p className="text-sm text-gray-500 leading-6">{course.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* View class info button */}
-                  <button
-                    onClick={() => navigate(`/course/${course.id}`)}
-                    className="rounded-full border-2 border-gray-200 px-5 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Class Info
-                  </button>
-                  {/* New Project — primary */}
+        <Card className="overflow-hidden p-0">
+          <div className="flex items-center justify-between border-b border-line px-5 py-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">Projects</h2>
+              <p className="text-sm text-slate-500">Continue a draft or create a new plan.</p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-line">
+            {visibleCourseData.map(({ course, projects }) => (
+              <section key={course.id} className="p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">Course</p>
+                    <h3 className="mt-1 text-base font-black text-slate-950">{course.title}</h3>
+                    {course.description && (
+                      <p className="mt-1 text-sm leading-6 text-slate-500">{course.description}</p>
+                    )}
+                  </div>
                   <button
                     onClick={() => navigate(`/project/new?courseId=${course.id}`)}
-                    className="rounded-full bg-primary px-5 py-2 text-sm font-bold text-white hover:bg-primary-light transition-colors"
+                    className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-light"
                   >
-                    + New Project
+                    Create New Project
                   </button>
                 </div>
-              </div>
 
-              {/* Project cards grid */}
-              {projects.length === 0 ? (
-                <div className="border-2 border-dashed border-black/10 rounded-2xl p-8 text-center text-gray-400 text-sm">
-                  No projects yet — start one!
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {projects.map((project) => {
-                    const stepInfo = getStepInfo(project.current_step)
-                    return (
-                      <Card
-                        key={project.id}
-                        onClick={() => navigate(getProjectPath(project.id, project.current_step))}
-                        className="hover:border-primary/30"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <h3 className="font-bold text-gray-900 text-sm leading-snug pr-2">
-                            {project.title}
-                          </h3>
-                          <Badge variant={stepInfo.variant}>{stepInfo.label}</Badge>
-                        </div>
-                        <p className="text-xs text-gray-400">
-                          Updated {new Date(project.updated_at).toLocaleDateString()}
-                        </p>
-                      </Card>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+                {projects.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-line bg-slate-50 p-6 text-center text-sm text-slate-500">
+                    No projects in this course yet.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead>
+                        <tr className="border-b border-line text-left text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                          <th className="pb-3">Project Name</th>
+                          <th className="pb-3">Status</th>
+                          <th className="pb-3">Current Step</th>
+                          <th className="pb-3">Last Updated</th>
+                          <th className="pb-3 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line">
+                        {projects.map((project) => {
+                          const stepInfo = getStepInfo(project.current_step)
+                          return (
+                            <tr key={project.id} className="hover:bg-slate-50">
+                              <td className="py-3 font-bold text-slate-900">{project.title}</td>
+                              <td className="py-3"><Badge>{project.status}</Badge></td>
+                              <td className="py-3"><Badge variant={stepInfo.variant}>{stepInfo.label}</Badge></td>
+                              <td className="py-3 text-slate-500">{new Date(project.updated_at).toLocaleDateString()}</td>
+                              <td className="py-3 text-right">
+                                <button
+                                  onClick={() => navigate(getProjectPath(project.id, project.current_step))}
+                                  className="rounded-md border border-line bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-primary/30 hover:text-primary"
+                                >
+                                  Open
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            ))}
+          </div>
+        </Card>
       )}
     </PageContainer>
   )

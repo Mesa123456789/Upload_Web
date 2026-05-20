@@ -1,19 +1,21 @@
 @import "tailwindcss";
 
-/* EMD — Ethical Monetization Designer */
-/* Design system — warm cream palette, CMU purple accent */
+/* EMD - Ethical Monetization Designer */
+/* CAMT-inspired palette: orange accent, warm beige surfaces, clean academic UI. */
 
 @theme {
-  /* Brand colors — terracotta/brown palette (matched from ai-engagement-dashboard) */
-  --color-primary: #8B6A58;
-  --color-primary-light: #A57A63;
-  --color-secondary: #6E6E6E;
-
-  /* Surface tokens */
-  --color-background-main: #E7E4DD;
-  --color-background-card: #F4F3EF;
-
-  /* Typography */
+  --color-primary: #f58220;
+  --color-primary-light: #ff9a3d;
+  --color-secondary: #8b5e3c;
+  --color-background-main: #f7f2ec;
+  --color-background-card: #ffffff;
+  --color-ink: #2a2520;
+  --color-muted: #6b5f54;
+  --color-line: #eadfd4;
+  --color-accent: #c07a4a;
+  --color-success: #0f8f7d;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
   --font-inter: "Inter", sans-serif;
 }
 
@@ -24,8 +26,34 @@
 body {
   margin: 0;
   font-family: "Inter", system-ui, -apple-system, sans-serif;
-  background-color: #E7E4DD;
-  color: #2F2F2F;
+  background:
+    linear-gradient(180deg, rgba(245, 130, 32, 0.06), transparent 18rem),
+    linear-gradient(180deg, #fbfaf8 0%, #f3eee8 100%);
+  color: #2a2520;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: rgba(245, 130, 32, 0.22);
+}
+
+.app-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d9c5b5 transparent;
 }
 
 @media print {

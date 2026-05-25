@@ -36,7 +36,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-background-main px-4 py-8">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl overflow-hidden rounded-lg border border-line bg-white shadow-xl lg:grid-cols-[1.05fr_0.95fr]">
         <section className="flex flex-col justify-between bg-ink p-8 text-white md:p-10">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <div className="flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-lg font-black text-ink">
                 EMD
@@ -46,15 +46,9 @@ export default function LoginPage() {
                 <p className="text-xs text-white/60">Course / Class Workspace</p>
               </div>
             </div>
-            <span className="rounded-md border border-white/15 px-3 py-1 text-xs font-bold text-white/80">
-              TH | EN
-            </span>
           </div>
 
           <div className="my-16 max-w-xl">
-            <p className="mb-4 inline-flex rounded-md bg-primary/25 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-teal-100">
-              F2P design guardrails
-            </p>
             <h1 className="text-4xl font-black leading-tight tracking-tight md:text-5xl">
               Build monetization plans students can defend.
             </h1>

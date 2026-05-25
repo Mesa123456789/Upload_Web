@@ -9,7 +9,30 @@ import Spinner from '../../../shared/components/Spinner'
 import StepIndicator from './components/StepIndicator'
 import AiSuggestionPanel from './components/AiSuggestionPanel'
 
-const GENRES = ['Puzzle', 'Action', 'RPG', 'Simulation', 'Strategy', 'Casual', 'Sports', 'Adventure']
+const MAIN_GENRES = ['Puzzle', 'Action', 'RPG', 'Simulation', 'Strategy', 'Casual', 'Sports', 'Adventure']
+const MORE_GENRES = [
+  'Arcade',
+  'Idle',
+  'Hyper-casual',
+  'Racing',
+  'Shooter',
+  'Battle Royale',
+  'Card',
+  'Board',
+  'Trivia',
+  'Word',
+  'Educational',
+  'Music',
+  'Rhythm',
+  'Horror',
+  'Survival',
+  'Sandbox',
+  'MMORPG',
+  'MOBA',
+  'Tower Defense',
+  'Roguelike',
+  'Visual Novel',
+]
 const PLATFORMS = ['Mobile (iOS)', 'Mobile (Android)', 'PC', 'Console', 'Web']
 const AUDIENCES = ['All ages', 'Kids', 'Teens', 'Casual adults', 'Core players']
 
@@ -26,10 +49,13 @@ export default function SetupPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showMoreGenres, setShowMoreGenres] = useState(false)
   const [title, setTitle] = useState('')
   const [genre, setGenre] = useState<string[]>([])
   const [platform, setPlatform] = useState<string[]>([])
+  const [customPlatform, setCustomPlatform] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
+  const [customTargetAudience, setCustomTargetAudience] = useState('')
   const [coreMechanic, setCoreMechanic] = useState('')
   const [sessionLength, setSessionLength] = useState('5-10 min')
 
@@ -42,7 +68,12 @@ export default function SetupPage() {
           setTitle(project.title)
           setGenre(project.genre ?? [])
           setPlatform(project.platform ?? [])
-          setTargetAudience(project.target_audience ?? '')
+          if (project.target_audience && AUDIENCES.includes(project.target_audience)) {
+            setTargetAudience(project.target_audience)
+          } else {
+            setTargetAudience('')
+            setCustomTargetAudience(project.target_audience ?? '')
+          }
           setCoreMechanic(project.core_mechanic ?? '')
           setSessionLength(project.session_length ?? '5-10 min')
         } catch (err) {
@@ -56,6 +87,13 @@ export default function SetupPage() {
 
   function toggleArrayItem(arr: string[], item: string): string[] {
     return arr.includes(item) ? arr.filter((value) => value !== item) : [...arr, item]
+  }
+
+  function addCustomPlatform() {
+    const nextPlatform = customPlatform.trim()
+    if (!nextPlatform) return
+    setPlatform((current) => current.includes(nextPlatform) ? current : [...current, nextPlatform])
+    setCustomPlatform('')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -87,11 +125,13 @@ export default function SetupPage() {
         savedProjectId = newProject.id
       }
 
+      const finalTargetAudience = customTargetAudience.trim() || targetAudience.trim()
+
       await updateProject(savedProjectId, {
         title: title.trim(),
         genre: genre.length > 0 ? genre : null,
         platform: platform.length > 0 ? platform : null,
-        target_audience: targetAudience.trim() || null,
+        target_audience: finalTargetAudience || null,
         core_mechanic: coreMechanic.trim() || null,
         session_length: sessionLength || null,
         current_step: 2,
@@ -151,7 +191,7 @@ export default function SetupPage() {
               <div>
                 <label className="mb-3 block text-sm font-bold text-slate-700">Genre</label>
                 <div className="flex flex-wrap gap-2">
-                  {GENRES.map((item) => (
+                  {MAIN_GENRES.map((item) => (
                     <button
                       key={item}
                       type="button"
@@ -165,7 +205,37 @@ export default function SetupPage() {
                       {item}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreGenres((value) => !value)}
+                    className="rounded-md border border-dashed border-primary/40 bg-orange-50 px-3 py-2 text-sm font-black text-primary transition hover:border-primary hover:bg-orange-100"
+                  >
+                    {showMoreGenres ? 'less' : '...more'}
+                  </button>
                 </div>
+                {showMoreGenres && (
+                  <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-line bg-slate-50 p-3">
+                    {MORE_GENRES.map((item) => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setGenre(toggleArrayItem(genre, item))}
+                        className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
+                          genre.includes(item)
+                            ? 'border-primary bg-primary text-white'
+                            : 'border-line bg-white text-slate-600 hover:border-primary/30'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {genre.length > 0 && (
+                  <p className="mt-2 text-xs font-semibold text-slate-500">
+                    Selected: {genre.join(', ')}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -189,14 +259,61 @@ export default function SetupPage() {
                       {item}
                     </label>
                   ))}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customPlatform}
+                      onChange={(event) => setCustomPlatform(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault()
+                          addCustomPlatform()
+                        }
+                      }}
+                      placeholder="Add your own platform..."
+                      className={`${inputClass} min-w-0`}
+                    />
+                    <button
+                      type="button"
+                      onClick={addCustomPlatform}
+                      className="shrink-0 rounded-lg border border-primary/30 bg-orange-50 px-4 py-2 text-sm font-black text-primary transition hover:border-primary hover:bg-orange-100"
+                    >
+                      Add
+                    </button>
+                  </div>
                 </div>
+                {platform.filter((item) => !PLATFORMS.includes(item)).length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {platform.filter((item) => !PLATFORMS.includes(item)).map((item) => (
+                      <label
+                        key={item}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold transition ${
+                          platform.includes(item)
+                            ? 'border-primary bg-teal-50 text-primary'
+                            : 'border-line bg-white text-slate-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={platform.includes(item)}
+                          onChange={() => setPlatform(toggleArrayItem(platform, item))}
+                          className="h-4 w-4 accent-primary"
+                        />
+                        {item}
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
                 <label className="mb-2 block text-sm font-bold text-slate-700">Target Audience</label>
                 <select
                   value={targetAudience}
-                  onChange={(event) => setTargetAudience(event.target.value)}
+                  onChange={(event) => {
+                    setTargetAudience(event.target.value)
+                    if (event.target.value) setCustomTargetAudience('')
+                  }}
                   className={inputClass}
                 >
                   <option value="">Select audience</option>
@@ -204,6 +321,16 @@ export default function SetupPage() {
                     <option key={item} value={item}>{item}</option>
                   ))}
                 </select>
+                <input
+                  type="text"
+                  value={customTargetAudience}
+                  onChange={(event) => {
+                    setCustomTargetAudience(event.target.value)
+                    if (event.target.value.trim()) setTargetAudience('')
+                  }}
+                  placeholder="Or type your own audience..."
+                  className={`${inputClass} mt-3`}
+                />
               </div>
             </div>
           </Card>
@@ -255,11 +382,15 @@ export default function SetupPage() {
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-slate-500">Genre</dt>
-                <dd className="font-bold text-slate-900">{genre[0] ?? 'Not set'}</dd>
+                <dd className="max-w-44 text-right font-bold text-slate-900">
+                  {genre.length > 0 ? genre.join(', ') : 'Not set'}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-slate-500">Platforms</dt>
-                <dd className="font-bold text-slate-900">{platform.length || 0}</dd>
+                <dd className="max-w-44 text-right font-bold text-slate-900">
+                  {platform.length > 0 ? platform.join(', ') : 'Not set'}
+                </dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-slate-500">Session</dt>

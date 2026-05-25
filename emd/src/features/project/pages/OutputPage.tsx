@@ -19,6 +19,44 @@ import Badge from '../../../shared/components/Badge'
 import Spinner from '../../../shared/components/Spinner'
 import StepIndicator from './components/StepIndicator'
 
+type PdfExportMode = 'data' | 'ai'
+
+type IconProps = {
+  className?: string
+}
+
+function DownloadIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </svg>
+  )
+}
+
+function AiIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" />
+      <path d="M5 15l.6 1.4L7 17l-1.4.6L5 19l-.6-1.4L3 17l1.4-.6L5 15Z" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className = 'h-4 w-4' }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 15H6L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  )
+}
+
 export default function OutputPage() {
   const { id: projectId } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -144,7 +182,7 @@ export default function OutputPage() {
     URL.revokeObjectURL(url)
   }
 
-  function handleExportPDF() {
+  function handleExportPDF(mode: PdfExportMode) {
     if (!project) return
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -174,6 +212,38 @@ export default function OutputPage() {
     const interstitials = adPlacements.filter((placement) => placement.placement_type === 'interstitial').length
     const riskScore = Math.min(10, missingCaps * 3 + interstitials * 2 + Math.max(0, iapItems.length - 3))
     const riskLabel = riskScore >= 7 ? 'High' : riskScore >= 4 ? 'Medium' : 'Low'
+    const vagueItems = iapItems.filter((item) => !item.description).length
+    const unpricedItems = iapItems.filter((item) => item.price_usd == null).length
+    const aiSuggestions: string[][] = [
+      [
+        'Ad pressure',
+        missingCaps > 0 ? 'High priority' : interstitials > 1 ? 'Review' : 'Looks controlled',
+        missingCaps > 0
+          ? `Add frequency caps to ${missingCaps} ad placement(s) before submitting.`
+          : interstitials > 1
+            ? 'Reduce interstitial moments or move one to rewarded ads so players stay in control.'
+            : 'Keep rewarded ads optional and preserve the current pressure level.',
+      ],
+      [
+        'IAP clarity',
+        vagueItems > 0 || unpricedItems > 0 ? 'High priority' : 'Looks clear',
+        vagueItems > 0 || unpricedItems > 0
+          ? `Clarify benefit and price for ${Math.max(vagueItems, unpricedItems)} purchase item(s).`
+          : 'The catalog explains player benefit and price well enough for review.',
+      ],
+      [
+        'Revenue balance',
+        riskScore >= 7 ? 'Needs tuning' : 'Balanced',
+        riskScore >= 7
+          ? 'Lower pressure by limiting interruption points and keeping paid boosts optional.'
+          : 'Explain why this mix earns revenue without blocking normal progress.',
+      ],
+      [
+        'Pitch focus',
+        'Recommended',
+        'Lead the pitch with fairness evidence: optionality, clear value, and caps.',
+      ],
+    ]
 
     function setText(color: [number, number, number] = ink) {
       doc.setTextColor(color[0], color[1], color[2])
@@ -281,6 +351,89 @@ export default function OutputPage() {
       y += 5
     }
 
+    if (mode === 'ai') {
+      doc.setFillColor(warm[0], warm[1], warm[2])
+      doc.rect(0, 0, pageWidth, 42, 'F')
+      doc.setFillColor(orange[0], orange[1], orange[2])
+      doc.roundedRect(margin, 12, 16, 16, 3, 3, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(11)
+      doc.setTextColor(255, 255, 255)
+      doc.text('AI', margin + 8, 22, { align: 'center' })
+      doc.setFontSize(19)
+      setText(ink)
+      doc.text(project.title, margin + 22, 18)
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      setText(muted)
+      doc.text('Ethical Monetization Designer - AI Recommended PDF', margin + 22, 25)
+      doc.text(`Export date: ${exportDate}`, pageWidth - margin, 18, { align: 'right' })
+      doc.text(`Risk: ${riskLabel} (${riskScore}/10)`, pageWidth - margin, 25, { align: 'right' })
+      y = 52
+
+      card(margin, y, contentWidth, 34)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(14)
+      setText(ink)
+      doc.text('AI Recommendation Summary', margin + 5, y + 9)
+      y += 18
+      paragraph(
+        riskScore >= 7
+          ? 'The plan can become stronger by reducing pressure before final review. Prioritize caps, clear purchase value, and fewer interruption points.'
+          : 'The plan is close to review-ready. Use the pitch to show how the design protects player choice while still supporting revenue.',
+        margin + 5,
+        contentWidth - 10,
+        9
+      )
+      y += 8
+
+      title('Recommended Fixes')
+      table(['Area', 'Priority', 'AI recommendation'], aiSuggestions, [38, 34, 100])
+
+      title('Suggested Pitch')
+      paragraph(
+        `${project.title} uses monetization as optional value rather than forced progress. Ads should appear at controlled moments with visible caps, while IAP items should clearly state price and player benefit. The strongest argument for this plan is that players can decline offers and still enjoy the normal game loop.`,
+        margin,
+        contentWidth,
+        10
+      )
+      y += 5
+
+      title('Data Snapshot Used by AI')
+      table(
+        ['Metric', 'Current value'],
+        [
+          ['Game title', project.title],
+          ['Genre', list(project.genre)],
+          ['Platform', list(project.platform)],
+          ['Target audience', value(project.target_audience)],
+          ['Ad placements', `${adPlacements.length}`],
+          ['IAP items', `${iapItems.length}`],
+          ['Missing ad caps', `${missingCaps}`],
+          ['Interstitial placements', `${interstitials}`],
+          ['Unclear IAP benefit', `${vagueItems}`],
+          ['Missing IAP price', `${unpricedItems}`],
+        ],
+        [62, 110]
+      )
+
+      title('Final Checklist')
+      table(
+        ['Check', 'Recommended standard'],
+        [
+          ['Frequency cap', 'Every ad placement has a cap per session or per day.'],
+          ['Optionality', 'Players can decline ads and purchases without losing normal progress.'],
+          ['Price clarity', 'Every paid item has a visible price and a concrete benefit.'],
+          ['Pitch evidence', 'The final pitch names caps, optionality, and clear value as ethics evidence.'],
+        ],
+        [52, 120]
+      )
+
+      footer()
+      doc.save(`emd-${safeFileName}-ai-recommendations.pdf`)
+      return
+    }
+
     doc.setFillColor(warm[0], warm[1], warm[2])
     doc.rect(0, 0, pageWidth, 38, 'F')
     doc.setFillColor(orange[0], orange[1], orange[2])
@@ -295,7 +448,7 @@ export default function OutputPage() {
     doc.setFontSize(9)
     doc.setFont('helvetica', 'normal')
     setText(muted)
-    doc.text('Ethical Monetization Designer - Monetization Overview', margin + 22, 25)
+    doc.text('Ethical Monetization Designer - Your Data PDF', margin + 22, 25)
     doc.text(`Export date: ${exportDate}`, pageWidth - margin, 18, { align: 'right' })
     doc.text(`Status: ${project.status.replace('_', ' ')}`, pageWidth - margin, 25, { align: 'right' })
     y = 48
@@ -428,7 +581,7 @@ export default function OutputPage() {
     )
 
     footer()
-    doc.save(`emd-${safeFileName}.pdf`)
+    doc.save(`emd-${safeFileName}-data.pdf`)
   }
 
   if (loading) {
@@ -464,9 +617,20 @@ export default function OutputPage() {
           <p className="mt-2 text-sm leading-6 text-slate-500">Export-ready monetization overview for instructor review.</p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
-          <button onClick={handleExportCSV} className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50">CSV</button>
-          <button onClick={handleExportPDF} className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50">PDF</button>
-          <button onClick={handleDelete} disabled={deleting} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50">
+          <button onClick={handleExportCSV} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-orange-50">
+            <DownloadIcon className="h-4 w-4 text-primary" />
+            CSV
+          </button>
+          <button onClick={() => handleExportPDF('data')} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-orange-50">
+            <DownloadIcon className="h-4 w-4 text-primary" />
+            PDF
+          </button>
+          <button onClick={() => handleExportPDF('ai')} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-orange-50">
+            <AiIcon className="h-4 w-4 text-primary" />
+            PDF AI Recommended
+          </button>
+          <button onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-50 disabled:translate-y-0 disabled:opacity-50">
+            <TrashIcon className="h-4 w-4" />
             {deleting ? 'Deleting...' : 'Delete'}
           </button>
         </div>

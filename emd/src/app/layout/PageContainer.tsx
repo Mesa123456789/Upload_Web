@@ -1,4 +1,11 @@
 import Header from './Header'
+import { motion, useReducedMotion } from 'framer-motion'
+import { useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { Home, Languages } from 'lucide-react'
+import { useAuth } from '../../features/auth/context/useAuth'
+import { useI18n } from '../../i18n/I18nProvider'
+import { pageVariants, transitions } from '../../shared/motion'
 
 interface PageContainerProps {
   children: React.ReactNode
@@ -6,12 +13,84 @@ interface PageContainerProps {
 }
 
 export default function PageContainer({ children, className = '' }: PageContainerProps) {
+  const reduceMotion = useReducedMotion()
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const location = useLocation()
+  const { profile } = useAuth()
+  const { t, language, setLanguage } = useI18n()
+  const isInstructor = profile?.role === 'instructor'
+  const shellOffsetClass = sidebarExpanded ? 'lg:left-[300px]' : 'lg:left-[88px]'
+  const mainOffsetClass = sidebarExpanded ? 'lg:ml-[300px]' : 'lg:ml-[88px]'
+  const pageMeta = getPageMeta(location.pathname, t, isInstructor)
+  const nextLanguage = language === 'th' ? 'en' : 'th'
+
   return (
-    <div className="min-h-screen bg-background-main">
-      <Header />
-      <main className={`mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8 space-y-6 ${className}`}>
+    <div className="min-h-screen bg-[var(--ds-bg)]">
+      <Header sidebarExpanded={sidebarExpanded} onSidebarExpandedChange={setSidebarExpanded} />
+      <section className={`fixed left-0 right-0 top-0 z-20 border-b border-slate-200/80 bg-white/92 px-4 py-4 pl-20 shadow-[0_10px_24px_rgba(17,24,39,0.04)] backdrop-blur-xl transition-[left] duration-300 sm:px-6 sm:pl-20 lg:pl-10 lg:px-10 2xl:px-14 ${shellOffsetClass}`}>
+        <div className="flex min-w-0 items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-slate-400">
+              <Home className="h-3.5 w-3.5 shrink-0" />
+              <Link to="/" className="shrink-0 transition hover:text-[#f97316]">
+                Home
+              </Link>
+              <span className="text-slate-300">/</span>
+              <Link to={pageMeta.breadcrumbTo} className="ds-one-line text-slate-500 transition hover:text-[#f97316]">
+                {pageMeta.breadcrumb}
+              </Link>
+            </div>
+            <h1 className="mt-2 text-[26px] font-black leading-tight tracking-tight text-[var(--ds-ink)] sm:text-[30px]">
+              {pageMeta.title}
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{pageMeta.subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLanguage(nextLanguage)}
+            className="flex h-10 w-[74px] shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-[#302226] text-xs font-black text-white shadow-sm ring-1 ring-[#4a363a] transition hover:bg-[#3b2a2e]"
+            aria-label={t('language.switch')}
+            title={t('language.switch')}
+          >
+            <Languages className="h-4 w-4 shrink-0" />
+            <span className="w-5 text-center [font-family:Arial,sans-serif]">{language === 'th' ? 'TH' : 'EN'}</span>
+          </button>
+        </div>
+      </section>
+      <motion.main
+        initial={reduceMotion ? false : 'initial'}
+        animate={reduceMotion ? undefined : 'animate'}
+        variants={pageVariants}
+        transition={transitions.page}
+        className={`min-h-screen space-y-8 px-4 pb-10 pt-[150px] transition-[margin] duration-300 sm:px-6 sm:pb-12 sm:pt-[142px] lg:px-10 lg:pb-8 2xl:px-14 ${mainOffsetClass} ${className}`}
+      >
         {children}
-      </main>
+      </motion.main>
     </div>
   )
+}
+
+function getPageMeta(pathname: string, t: (key: string) => string, isInstructor: boolean) {
+  if (pathname.includes('/profile')) {
+    return { title: t('profile.title'), subtitle: t('profile.subtitle'), breadcrumb: t('navigation.profile'), breadcrumbTo: '/profile' }
+  }
+  if (pathname.includes('/join')) {
+    return { title: t('joinCourse.title'), subtitle: t('joinCourse.subtitle'), breadcrumb: t('joinCourse.title'), breadcrumbTo: '/join' }
+  }
+  if (pathname.includes('/instructor/projects')) {
+    return { title: t('instructorProjects.title'), subtitle: t('instructorProjects.subtitle'), breadcrumb: t('navigation.projects'), breadcrumbTo: '/instructor/projects' }
+  }
+  if (pathname.includes('/instructor/courses')) {
+    return { title: t('instructorCourses.title'), subtitle: t('instructorCourses.subtitle'), breadcrumb: t('common.courses'), breadcrumbTo: '/instructor/courses' }
+  }
+  if (pathname.includes('/projects')) {
+    return { title: t('projects.myProjects'), subtitle: t('dashboard.student.subtitle'), breadcrumb: t('navigation.projects'), breadcrumbTo: '/projects' }
+  }
+  if (pathname.includes('/project/')) {
+    return { title: t('projects.myProjects'), subtitle: t('dashboard.student.subtitle'), breadcrumb: t('navigation.projects'), breadcrumbTo: '/projects' }
+  }
+  if (isInstructor) {
+    return { title: t('dashboard.instructor.title'), subtitle: t('dashboard.student.subtitle'), breadcrumb: t('navigation.dashboard'), breadcrumbTo: '/instructor/dashboard' }
+  }
+  return { title: t('dashboard.student.title'), subtitle: t('dashboard.student.subtitle'), breadcrumb: t('navigation.dashboard'), breadcrumbTo: '/dashboard' }
 }

@@ -1,240 +1,110 @@
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Plus } from 'lucide-react'
 import { useAuth } from '../../auth/context/useAuth'
-import { listStudentCourses } from '../../courses/services/courses.service'
-import { listProjectsByCourseAndOwner } from '../../projects/services/projects.service'
-import type { Course, Project } from '../../../lib/database.types'
+import { useI18n } from '../../../i18n/I18nProvider'
 import PageContainer from '../../../app/layout/PageContainer'
-import Card from '../../../shared/components/Card'
-import Badge from '../../../shared/components/Badge'
-import Spinner from '../../../shared/components/Spinner'
+import { Skeleton } from '../../../shared/components/Skeleton'
+import StudentProjectsPanel from '../components/StudentProjectsPanel'
+import { useStudentCourseProjects } from '../hooks/useStudentCourseProjects'
 
-function getStepInfo(step: number): { label: string; variant: 'blue' | 'yellow' | 'purple' | 'green' } {
-  switch (step) {
-    case 1: return { label: 'Setup', variant: 'blue' }
-    case 2: return { label: 'Build', variant: 'yellow' }
-    case 3: return { label: 'Guardrail', variant: 'purple' }
-    case 4: return { label: 'Output', variant: 'green' }
-    default: return { label: 'Setup', variant: 'blue' }
-  }
+type Accent = 'blue' | 'green' | 'orange' | 'yellow'
+
+function StatCard({
+  label,
+  value,
+  accent,
+  watermark,
+}: {
+  label: string
+  value: string
+  accent: Accent
+  watermark: string
+}) {
+  return (
+    <div className={`relative h-[156px] overflow-hidden rounded-[24px] px-5 py-5 text-white shadow-sm sm:h-[172px] sm:rounded-[28px] sm:px-7 sm:py-6 xl:h-[166px] 2xl:h-[188px] 2xl:rounded-[30px] 2xl:px-8 2xl:py-7 ds-stat-${accent}`}>
+      <p className="ds-stat-card-label text-[18px] font-medium drop-shadow-md sm:text-[22px] 2xl:text-[24px]">{label}</p>
+      <p className="ds-stat-card-value text-center text-[52px] font-black leading-none text-[#fff3e4] drop-shadow-[0_8px_8px_rgba(48,34,38,0.35)] sm:text-[64px] 2xl:text-[72px]">
+        {value}
+      </p>
+      <span className="ds-stat-card-watermark pointer-events-none absolute -bottom-5 right-0 text-[150px] font-black leading-none text-white/20 sm:-bottom-6 sm:text-[190px] 2xl:-bottom-7 2xl:text-[220px]">
+        {watermark}
+      </span>
+    </div>
+  )
 }
 
-function getProjectPath(projectId: string, step: number): string {
-  switch (step) {
-    case 1: return `/project/${projectId}/setup`
-    case 2: return `/project/${projectId}/build`
-    case 3: return `/project/${projectId}/guardrail`
-    case 4: return `/project/${projectId}/output`
-    default: return `/project/${projectId}/setup`
-  }
+function DashboardSkeleton() {
+  return (
+    <PageContainer>
+      <Skeleton className="mb-10 h-9 w-44" />
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-[150px] rounded-[24px]" />
+        ))}
+      </div>
+      <div className="rounded-[24px] bg-white p-5 shadow-[0_14px_28px_rgba(17,24,39,0.08)]">
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div key={index} className="grid grid-cols-3 gap-4 border-b border-black/5 py-3 last:border-0 sm:grid-cols-5">
+            {Array.from({ length: 5 }).map((__, cell) => (
+              <Skeleton key={cell} className="h-4" />
+            ))}
+          </div>
+        ))}
+      </div>
+    </PageContainer>
+  )
 }
-
-interface CourseWithProjects {
-  course: Course
-  projects: Project[]
-}
-
-const ALL_FILTER = '__ALL__'
 
 export default function StudentDashboardPage() {
   const { user } = useAuth()
+  const { t, formatNumber } = useI18n()
   const navigate = useNavigate()
+  const {
+    courseData,
+    visibleCourseData,
+    projects,
+    selectedCourse,
+    filterCourseId,
+    setFilterCourseId,
+    loading,
+    error,
+  } = useStudentCourseProjects(user?.id)
 
-  const [courseData, setCourseData] = useState<CourseWithProjects[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [filterCourseId, setFilterCourseId] = useState<string>(ALL_FILTER)
-
-  async function loadData() {
-    if (!user) return
-    setLoading(true)
-    setError(null)
-
-    try {
-      const courses = await listStudentCourses()
-      const results = await Promise.all(
-        courses.map(async (course) => {
-          const projects = await listProjectsByCourseAndOwner(course.id, user.id)
-          return { course, projects }
-        })
-      )
-      setCourseData(results)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadData()
-  }, [user?.id])
-
-  if (loading) {
-    return (
-      <PageContainer>
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" />
-        </div>
-      </PageContainer>
-    )
-  }
-
-  const visibleCourseData =
-    filterCourseId === ALL_FILTER
-      ? courseData
-      : courseData.filter((cd) => cd.course.id === filterCourseId)
-  const projects = visibleCourseData.flatMap((item) => item.projects)
   const activeProjects = projects.length
   const readyProjects = projects.filter((project) => project.current_step >= 4).length
   const submittedProjects = projects.filter((project) => project.status !== 'draft').length
-  const showFilter = courseData.length >= 2
+  const guardrailReady = projects.filter((project) => project.current_step >= 3).length
+
+  if (loading) return <DashboardSkeleton />
 
   return (
     <PageContainer>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-primary">Student Workspace</p>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Dashboard</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Overview of your courses, projects, and guardrail progress.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {showFilter && (
-            <select
-              value={filterCourseId}
-              onChange={(event) => setFilterCourseId(event.target.value)}
-              className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <option value={ALL_FILTER}>All Courses</option>
-              {courseData.map(({ course }) => (
-                <option key={course.id} value={course.id}>{course.title}</option>
-              ))}
-            </select>
-          )}
-          <button
-            onClick={() => navigate('/join')}
-            className="rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
-          >
-            Join Course
-          </button>
-        </div>
+      <div className="mb-6 flex justify-end sm:mb-8">
+        <button
+          onClick={() => navigate('/join')}
+          className="ds-button ds-button-yellow min-w-[150px]"
+        >
+          <Plus className="h-4 w-4" />
+          {t('dashboard.student.joinCourse')}
+        </button>
       </div>
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Active Projects</p>
-          <p className="mt-3 text-4xl font-black text-slate-950">{activeProjects}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Output Ready</p>
-          <p className="mt-3 text-4xl font-black text-emerald-700">{readyProjects}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Submitted</p>
-          <p className="mt-3 text-4xl font-black text-sky-700">{submittedProjects}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-slate-500">Courses</p>
-          <p className="mt-3 text-4xl font-black text-slate-950">{visibleCourseData.length}</p>
-        </Card>
+      <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label={t('dashboard.student.stats.activeProjects')} value={formatNumber(activeProjects)} accent="blue" watermark="C" />
+        <StatCard label={t('dashboard.student.stats.outputReady')} value={formatNumber(readyProjects)} accent="green" watermark="A" />
+        <StatCard label={t('dashboard.student.stats.submitted')} value={formatNumber(submittedProjects)} accent="orange" watermark="M" />
+        <StatCard label={t('dashboard.student.stats.guardrailReady')} value={formatNumber(guardrailReady)} accent="yellow" watermark="T" />
       </div>
 
-      {courseData.length === 0 ? (
-        <Card className="text-center">
-          <div className="mx-auto max-w-md py-8">
-            <h2 className="text-xl font-black text-slate-950">No courses yet</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Join a course to start creating monetization plans.
-            </p>
-            <button
-              onClick={() => navigate('/join')}
-              className="mt-6 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white transition hover:bg-primary-light"
-            >
-              Join a Course
-            </button>
-          </div>
-        </Card>
-      ) : (
-        <Card className="overflow-hidden p-0">
-          <div className="flex items-center justify-between border-b border-line px-5 py-4">
-            <div>
-              <h2 className="text-lg font-black text-slate-950">Projects</h2>
-              <p className="text-sm text-slate-500">Continue a draft or create a new plan.</p>
-            </div>
-          </div>
-
-          <div className="divide-y divide-line">
-            {visibleCourseData.map(({ course, projects }) => (
-              <section key={course.id} className="p-5">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">Course</p>
-                    <h3 className="mt-1 text-base font-black text-slate-950">{course.title}</h3>
-                    {course.description && (
-                      <p className="mt-1 text-sm leading-6 text-slate-500">{course.description}</p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => navigate(`/project/new?courseId=${course.id}`)}
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:bg-primary-light"
-                  >
-                    Create New Project
-                  </button>
-                </div>
-
-                {projects.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-line bg-slate-50 p-6 text-center text-sm text-slate-500">
-                    No projects in this course yet.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[720px] text-sm">
-                      <thead>
-                        <tr className="border-b border-line text-left text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                          <th className="pb-3">Project Name</th>
-                          <th className="pb-3">Status</th>
-                          <th className="pb-3">Current Step</th>
-                          <th className="pb-3">Last Updated</th>
-                          <th className="pb-3 text-right">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-line">
-                        {projects.map((project) => {
-                          const stepInfo = getStepInfo(project.current_step)
-                          return (
-                            <tr key={project.id} className="hover:bg-slate-50">
-                              <td className="py-3 font-bold text-slate-900">{project.title}</td>
-                              <td className="py-3"><Badge>{project.status}</Badge></td>
-                              <td className="py-3"><Badge variant={stepInfo.variant}>{stepInfo.label}</Badge></td>
-                              <td className="py-3 text-slate-500">{new Date(project.updated_at).toLocaleDateString()}</td>
-                              <td className="py-3 text-right">
-                                <button
-                                  onClick={() => navigate(getProjectPath(project.id, project.current_step))}
-                                  className="rounded-md border border-line bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-primary/30 hover:text-primary"
-                                >
-                                  Open
-                                </button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
-        </Card>
-      )}
+      <StudentProjectsPanel
+        courseData={courseData}
+        visibleCourseData={visibleCourseData}
+        projects={projects}
+        selectedCourse={selectedCourse}
+        filterCourseId={filterCourseId}
+        onFilterCourseChange={setFilterCourseId}
+        error={error}
+      />
     </PageContainer>
   )
 }

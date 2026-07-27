@@ -3,30 +3,83 @@ import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../../../lib/supabase'
 import type { Profile } from '../../../lib/database.types'
 
+const previewAuth = import.meta.env.VITE_PREVIEW_AUTH === 'true'
+
+const previewProfile: Profile = {
+  id: 'preview-instructor',
+  email: 'preview@emd.local',
+  display_name: 'Pimponput Talubnga',
+  role: 'instructor',
+  contact_info: null,
+  student_code: '662110157',
+  major: null,
+  year: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+const previewSession = {
+  access_token: 'preview-access-token',
+  refresh_token: 'preview-refresh-token',
+  expires_in: 3600,
+  token_type: 'bearer',
+  user: {
+    id: previewProfile.id,
+    email: previewProfile.email,
+    app_metadata: {},
+    user_metadata: { display_name: previewProfile.display_name },
+    aud: 'authenticated',
+    created_at: previewProfile.created_at,
+  },
+} as Session
+ 
 interface AuthContextValue {
   user: User | null
   session: Session | null
   profile: Profile | null
   loading: boolean
-  // Expose setProfile so ProfilePage can sync the updated profile into context
-  // after a successful save — avoids a full page reload to reflect name changes.
   setProfile: (profile: Profile | null) => void
 }
-
-// Export so useAuth.ts can import it directly
+ 
 export const AuthContext = createContext<AuthContextValue | null>(null)
 
+function PreviewAuthProvider({ children }: { children: React.ReactNode }) {
+  const [profile, setProfile] = useState<Profile | null>(previewProfile)
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user: previewSession.user,
+        session: previewSession,
+        profile,
+        loading: false,
+        setProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
+ 
+// เวลาสูงสุดที่รอ getSession() — กันค้างตลอดไปถ้าเจอ deadlock ซ้ำใน edge case อื่น
+// (เป็นตาข่ายนิรภัยเสริม ไม่ใช่ทางแก้หลัก — ทางแก้หลักคือแยก fetchProfile ออกแล้ว)
+const SESSION_TIMEOUT_MS = 8000
+ 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (previewAuth) {
+    return <PreviewAuthProvider>{children}</PreviewAuthProvider>
+  }
+
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
-
-  // Track the user ID whose profile we last fetched.
-  // This ref is shared across re-renders so TOKEN_REFRESHED events for the
-  // same user will not trigger a redundant fetchProfile() call.
+  // sessionReady = true เมื่อ getSession()/onAuthStateChange ครั้งแรกตอบกลับมาแล้ว
+  // (ไม่ว่าจะมี session หรือไม่) ใช้แยกจาก "loading" ของ profile
+  const [sessionReady, setSessionReady] = useState(false)
+ 
   const lastFetchedUserIdRef = useRef<string | null>(null)
-
+ 
   async function fetchProfile(userId: string): Promise<Profile | null> {
     try {
       const { data, error } = await supabase
@@ -34,99 +87,115 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('*')
         .eq('id', userId)
         .single()
-      if (error) return null
+      if (error) {
+        console.error('[Auth] Fetch profile error:', error.message)
+        return null
+      }
       return data
-    } catch {
+    } catch (err) {
+      console.error('[Auth] Fetch profile exception:', err)
       return null
     }
   }
-
+ 
+  // ── Effect 1: จัดการ session/user เท่านั้น — ไม่เรียก fetchProfile ที่นี่ ──
   useEffect(() => {
-    // Track whether this effect instance is still mounted.
-    // In React StrictMode, mount→unmount→remount happens intentionally.
-    // Using a boolean flag (not a ref) means each effect run gets its own
-    // independent flag — cleanup sets its own copy to false, never touching
-    // the next run's copy.
     let mounted = true
-
-    // Step 1: getSession() reads directly from localStorage — resolves
-    // immediately without waiting for any event dispatch. This is the correct
-    // way to hydrate initial auth state in StrictMode because even if the
-    // effect runs twice, both runs will resolve independently and correctly.
+ 
+    // เผื่อ getSession() ค้างจริง (deadlock เคสอื่นที่ยังไม่รู้จัก) — timeout กันไว้
+    // ถ้าไม่ resolve ภายในเวลานี้ ให้เคลียร์ session แล้วปล่อยให้ ProtectedRoute
+    // ส่งไป /login แทนที่จะค้าง spinner ตลอดไป
+    const timeoutId = setTimeout(() => {
+      if (mounted && !sessionReady) {
+        console.warn('[Auth] getSession timeout — เคลียร์ session แล้วให้ login ใหม่')
+        setSession(null)
+        setUser(null)
+        setSessionReady(true)
+      }
+    }, SESSION_TIMEOUT_MS)
+ 
     supabase.auth.getSession().then(async ({ data: { session: initialSession }, error }) => {
       if (!mounted) return
-
-      // If there's an error (e.g. "Refresh Token Not Found" from a stale
-      // session in localStorage), clear the invalid tokens so the user isn't
-      // stuck in an infinite spinner.  signOut({ scope: 'local' }) removes
-      // only the local storage tokens without hitting the Supabase server.
+      clearTimeout(timeoutId)
+ 
       if (error) {
         console.warn('[Auth] getSession error — clearing stale session:', error.message)
         await supabase.auth.signOut({ scope: 'local' })
         if (mounted) {
           setSession(null)
           setUser(null)
-          setProfile(null)
-          setLoading(false)
+          setSessionReady(true)
         }
         return
       }
-
+ 
       setSession(initialSession)
       setUser(initialSession?.user ?? null)
-      if (initialSession?.user) {
-        lastFetchedUserIdRef.current = initialSession.user.id
-        const p = await fetchProfile(initialSession.user.id)
-        if (mounted) setProfile(p)
-      }
-      if (mounted) setLoading(false)
+      setSessionReady(true)
+      // หมายเหตุ: ไม่เรียก fetchProfile ตรงนี้ — Effect 2 จะจัดการเอง
     })
-
-    // Step 2: onAuthStateChange handles state changes AFTER initial load.
-    // We skip INITIAL_SESSION because getSession() already handled it above.
-    // Skipping prevents a double fetchProfile() on first render.
+ 
+    // callback นี้ทำแค่ sync session/user เข้า state — ไม่มี await supabase.* ใด ๆ
+    // ข้างใน เพื่อเลี่ยง deadlock ตามที่อธิบายไว้บนสุดของไฟล์
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        // Let getSession() handle the very first snapshot
+      (event, newSession) => {
         if (event === 'INITIAL_SESSION') return
         if (!mounted) return
-
+ 
         setSession(newSession)
         setUser(newSession?.user ?? null)
-
-        if (newSession?.user) {
-          // TOKEN_REFRESHED fires every ~60 min when the user is idle on another
-          // tab and comes back. The user object is re-created by Supabase but the
-          // user ID is the same. Skip fetchProfile() if we already have this
-          // user's profile — avoids a spinner flash on tab-switch.
-          const incomingId = newSession.user.id
-          if (incomingId !== lastFetchedUserIdRef.current) {
-            lastFetchedUserIdRef.current = incomingId
-            const p = await fetchProfile(incomingId)
-            if (mounted) setProfile(p)
-          }
-          // If userId is the same (TOKEN_REFRESHED), keep the existing profile —
-          // do NOT setProfile(null) here which would cause RoleRoute to flash
-          // the spinner while we re-fetch an identical row.
-        } else {
-          // SIGNED_OUT or session expired — clear everything
+        setSessionReady(true)
+ 
+        if (!newSession?.user) {
           lastFetchedUserIdRef.current = null
           setProfile(null)
         }
-      }
+        // กรณีมี user — ปล่อยให้ Effect 2 (ผูกกับ user?.id) เป็นคนเรียก
+        // fetchProfile เอง ไม่เรียกที่นี่
+      },
     )
-
+ 
     return () => {
-      // Set this run's flag to false — does not affect the next mount's flag
       mounted = false
+      clearTimeout(timeoutId)
       subscription.unsubscribe()
     }
   }, [])
-
+ 
+  // ── Effect 2: ดึง profile — แยกออกจาก onAuthStateChange callback โดยสิ้นเชิง ──
+  // ผูกกับ user?.id เท่านั้น รันนอก call stack ของ auth event ใด ๆ ตัด deadlock ขาด
+  useEffect(() => {
+    if (!sessionReady) return // รอให้ session อ่านเสร็จก่อน
+ 
+    if (!user) {
+      setLoading(false)
+      return
+    }
+ 
+    // กัน fetch ซ้ำถ้า user id เดิม (เช่น TOKEN_REFRESHED ที่ user คนเดิม)
+    if (user.id === lastFetchedUserIdRef.current) {
+      setLoading(false)
+      return
+    }
+ 
+    let cancelled = false
+    setLoading(true)
+ 
+    fetchProfile(user.id).then((p) => {
+      if (cancelled) return
+      lastFetchedUserIdRef.current = user.id
+      setProfile(p)
+      setLoading(false)
+    })
+ 
+    return () => {
+      cancelled = true
+    }
+  }, [sessionReady, user])
+ 
   return (
     <AuthContext.Provider value={{ user, session, profile, loading, setProfile }}>
       {children}
     </AuthContext.Provider>
   )
 }
-

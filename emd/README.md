@@ -1,73 +1,46 @@
-# React + TypeScript + Vite
+# Ethical Monetization Designer (EMD)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Repository นี้เป็น Source Code สำหรับแพลตฟอร์ม EMD ซึ่งมีฟีเจอร์หลักคือ AI Assistant, ระบบสร้าง Game Design Document (GDD) แบบ Interactive และเครื่องมือวิเคราะห์ Monetization เชิงจริยธรรม
 
-Currently, two official plugins are available:
+## 🌟 มีอะไรใหม่ (อัปเดตล่าสุด)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 🤖 AI Assistant Chat
+- **Multi-Model AI Provider:** โครงสร้างที่ออกแบบมาให้รองรับการเชื่อมต่อ AI หลายโมเดล
+- **Gemini Integration:** ใช้ขุมพลังจาก **Gemini 3.1 Flash Lite** พร้อมระบบ **API Shuffle Streaming** สลับ API Key 3 ตัวเพื่อรองรับจำนวน Request ที่มากขึ้นโดยไม่ติด Limit
+- **โมเดลที่รองรับในปัจจุบัน:**
+  - Gemini (Active)
+  - Owl Alpha ผ่าน OpenRouter (Active)
+  - DeepSeek (Pending / รอแก้ไขปัญหา)
+- **Local Dev Tools:** มีเครื่องมือสลับโมเดล AI ในตัว เพื่อให้ง่ายต่อการทดสอบและเปลี่ยนโมเดลระหว่างรัน Local
 
-## React Compiler
+### 🎨 UI & UX (การปรับปรุงหน้าตาและการใช้งาน)
+- **AI Chat Interface:** เพิ่ม UI แชตแบบลอย (Floating) สำหรับผู้ช่วยออกแบบเกม
+- **Toaster Notifications:** ระบบแจ้งเตือนสถานะต่างๆ แจ้งให้ผู้ใช้ทราบแบบ Real-time
+- **Skeleton Loaders:** เพิ่มอนิเมชันโหลดข้อมูล UI เพื่อให้รู้สึกว่าระบบทำงานลื่นไหล
+- **Animated UI:** เพิ่ม Transition และลูกเล่นการขยับต่างๆ ทั่วทั้งแดชบอร์ด
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 🗄️ Database (Supabase)
+- **AI Suggestions Table:** เพิ่มตารางใหม่ในฐานข้อมูลสำหรับบันทึกและดึงข้อมูลคำแนะนำจาก AI ของแต่ละโปรเจกต์โดยเฉพาะ
 
-## Expanding the ESLint configuration
+### 📄 PDF Exporter (ระบบส่งออก PDF)
+- อัปเดตให้ระบบ PDF สามารถดึงข้อมูลจากตาราง AI Suggestions มาแสดงผลได้แล้ว
+- *(หมายเหตุ: ปัจจุบันระบบส่งออกยังใช้ Canvas Image เพื่อแก้ปัญหาสระและฟอนต์ภาษาไทยชั่วคราว การปรับไปใช้ Native Text Rendering จะตามมาเร็วๆ นี้)*
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 🐛 Bug Fixes (การแก้ไขข้อผิดพลาด)
+- แก้บั๊ก Supabase Auth (Race condition) ที่อม AuthSession ไว้จนทำให้ระบบบังคับล็อกอินใหม่ตลอดเวลา
+- แก้ปัญหารัน API ไม่ผ่านและ Routing errors
+- ปรับแก้ UI บางส่วนที่แสดงผลผิดพลาด
+- แก้บั๊ก PDF Exporter เรื่องการจัดหน้า (Alignment) ให้ตรงเป๊ะมากขึ้น
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+---
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 🚀 การรันโปรเจกต์ (Local Development)
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+**⚠️ สำคัญมาก:** ให้ใช้ `vercel dev` แทน `npm run dev` สำหรับ localhost เพื่อให้รัน API ได้
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+เนื่องจากโปรเจกต์นี้มีการใช้ Serverless Functions ของ Vercel (เช่น API Routes สำหรับเรียก AI) คุณต้องใช้ **Vercel CLI** ในการรัน เพื่อให้สภาพแวดล้อม Local ทำงานได้เหมือนกับตอนนำขึ้น Production จริงๆ
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### สิ่งที่ต้องเตรียม
+ติดตั้ง Vercel CLI ในเครื่อง (ถ้ายังไม่มี):
+```bash
+npm i -g vercel

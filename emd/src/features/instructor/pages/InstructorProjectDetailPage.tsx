@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   getProject,
@@ -14,13 +14,16 @@ import { getProfile } from '../../profile/services/profiles.service'
 import type { Project, AdsConfig, AdPlacement, IapConfig, IapItem, Profile } from '../../../lib/database.types'
 import PageContainer from '../../../app/layout/PageContainer'
 import Card from '../../../shared/components/Card'
+import FadeInCard from '../../../shared/components/FadeInCard'
 import Badge from '../../../shared/components/Badge'
-import Spinner from '../../../shared/components/Spinner'
+import { ProjectDetailSkeleton } from '../../../shared/components/Skeleton'
+import { useI18n } from '../../../i18n/I18nProvider'
 
-// Read-only view of a student's project — shown to instructor only.
+// Read-only view of a student project shown to instructors.
 export default function InstructorProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
+  const { t, formatDate, formatNumber } = useI18n()
 
   const [project, setProject] = useState<Project | null>(null)
   const [studentProfile, setStudentProfile] = useState<Profile | null>(null)
@@ -57,7 +60,7 @@ export default function InstructorProjectDetailPage() {
       const updated = await setProjectUnderReview(projectId)
       setProject(updated)
     } catch (err) {
-      setReviewError(err instanceof Error ? err.message : 'Failed to update status')
+      setReviewError(err instanceof Error ? err.message : t('instructorProjectDetail.updateStatusFailed'))
     } finally {
       setReviewLoading(false)
     }
@@ -66,7 +69,7 @@ export default function InstructorProjectDetailPage() {
   async function handleReturn() {
     if (!projectId) return
     if (!sendBackComment.trim()) {
-      setReviewError('Please add a comment before returning the project.')
+      setReviewError(t('instructorProjectDetail.commentRequired'))
       return
     }
     setReviewLoading(true)
@@ -75,7 +78,7 @@ export default function InstructorProjectDetailPage() {
       const updated = await returnProject(projectId, sendBackComment.trim())
       setProject(updated)
     } catch (err) {
-      setReviewError(err instanceof Error ? err.message : 'Failed to return project')
+      setReviewError(err instanceof Error ? err.message : t('instructorProjectDetail.returnFailed'))
     } finally {
       setReviewLoading(false)
     }
@@ -85,7 +88,7 @@ export default function InstructorProjectDetailPage() {
     if (!projectId) return
     const gradeNum = parseInt(gradeValue, 10)
     if (isNaN(gradeNum) || gradeNum < 0 || gradeNum > 100) {
-      setReviewError('Grade must be a number between 0 and 100.')
+      setReviewError(t('instructorProjectDetail.gradeValidation'))
       return
     }
     setReviewLoading(true)
@@ -94,7 +97,7 @@ export default function InstructorProjectDetailPage() {
       const updated = await gradeProject(projectId, gradeNum, gradeComment.trim())
       setProject(updated)
     } catch (err) {
-      setReviewError(err instanceof Error ? err.message : 'Failed to grade project')
+      setReviewError(err instanceof Error ? err.message : t('instructorProjectDetail.gradeFailed'))
     } finally {
       setReviewLoading(false)
     }
@@ -124,20 +127,18 @@ export default function InstructorProjectDetailPage() {
           setIapItems(items)
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load project')
+        setError(err instanceof Error ? err.message : t('instructorProjectDetail.loadFailed'))
       } finally {
         setLoading(false)
       }
     }
     load()
-  }, [projectId])
+  }, [projectId, t])
 
   if (loading) {
     return (
       <PageContainer>
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" />
-        </div>
+        <ProjectDetailSkeleton />
       </PageContainer>
     )
   }
@@ -145,19 +146,19 @@ export default function InstructorProjectDetailPage() {
   if (!project) {
     return (
       <PageContainer>
-        <p className="text-red-600 text-sm">{error ?? 'Project not found'}</p>
+        <p className="text-red-600 text-sm">{error ?? t('instructorProjectDetail.notFound')}</p>
         <button
           onClick={() => navigate(-1)}
           className="mt-4 rounded-full border-2 border-gray-200 px-6 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          Go Back
+          {t('common.goBack')}
         </button>
       </PageContainer>
     )
   }
 
-  const stepLabels = ['', 'Setup', 'Build', 'Guardrail', 'Output']
-  const currentStepLabel = stepLabels[project.current_step] ?? 'Unknown'
+  const stepLabelKeys = ['', 'steps.setup', 'steps.build', 'steps.guardrail', 'steps.output']
+  const currentStepLabel = t(stepLabelKeys[project.current_step] ?? 'common.unknown')
 
   function statusVariant(status: Project['status']): 'default' | 'blue' | 'yellow' | 'green' | 'red' | 'purple' {
     switch (status) {
@@ -170,8 +171,8 @@ export default function InstructorProjectDetailPage() {
     }
   }
 
-  const textareaCls = 'w-full border border-black/10 rounded-xl px-4 py-2.5 text-sm bg-background-main focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none placeholder:text-gray-400'
-  const inputCls = 'w-full border border-black/10 rounded-xl px-4 py-2.5 text-sm bg-background-main focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-gray-400'
+  const textareaCls = 'ds-input resize-none'
+  const inputCls = 'ds-input'
 
   return (
     <PageContainer>
@@ -181,25 +182,25 @@ export default function InstructorProjectDetailPage() {
           onClick={() => navigate(-1)}
           className="mt-1 rounded-full border-2 border-gray-200 px-4 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shrink-0"
         >
-          &larr; Back
+          &larr; {t('common.back')}
         </button>
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">{project.title}</h1>
             <Badge variant={statusVariant(project.status)}>
-              {project.status.replace('_', ' ')}
+              {t(`status.${project.status}`)}
             </Badge>
           </div>
           <p className="text-sm text-gray-500 mt-0.5">
-            Step: <span className="font-medium text-gray-700">{currentStepLabel}</span>
-            {' · '}Updated {new Date(project.updated_at).toLocaleDateString()}
+            {t('instructorProjectDetail.stepWithValue', { step: currentStepLabel })}
+            {' · '}{t('instructorProjectDetail.updated', { date: formatDate(project.updated_at) })}
           </p>
         </div>
       </div>
 
       {/* Read-only notice */}
       <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded-2xl p-3 text-sm">
-        Read-only view — you are viewing a student's project as an instructor.
+        {t('instructorProjectDetail.readOnlyNotice')}
       </div>
 
       {error && (
@@ -209,40 +210,41 @@ export default function InstructorProjectDetailPage() {
       )}
 
       {/* Student Info */}
+      <FadeInCard index={0}>
       <Card>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          Student Info
+          {t('instructorProjectDetail.studentInfo')}
         </p>
         {!studentProfile ? (
-          <p className="text-sm text-gray-400">Profile not available.</p>
+          <p className="text-sm text-gray-400">{t('instructorProjectDetail.profileUnavailable')}</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <span className="text-gray-500 block mb-1">Name</span>
+              <span className="text-gray-500 block mb-1">{t('common.name')}</span>
               <span className="font-bold text-gray-900">
                 {studentProfile.display_name ?? '—'}
               </span>
             </div>
             {studentProfile.student_code && (
               <div>
-                <span className="text-gray-500 block mb-1">Student Code</span>
+                <span className="text-gray-500 block mb-1">{t('common.studentCode')}</span>
                 <span className="font-mono text-gray-900">{studentProfile.student_code}</span>
               </div>
             )}
             {studentProfile.major && (
               <div>
-                <span className="text-gray-500 block mb-1">Major</span>
+                <span className="text-gray-500 block mb-1">{t('profile.major')}</span>
                 <span className="text-gray-900">{studentProfile.major}</span>
               </div>
             )}
             {studentProfile.year != null && (
               <div>
-                <span className="text-gray-500 block mb-1">Year</span>
-                <span className="text-gray-900">Year {studentProfile.year}</span>
+                <span className="text-gray-500 block mb-1">{t('profile.year')}</span>
+                <span className="text-gray-900">{t('profile.yearOption', { year: formatNumber(studentProfile.year) })}</span>
               </div>
             )}
             <div>
-              <span className="text-gray-500 block mb-1">Email</span>
+              <span className="text-gray-500 block mb-1">{t('common.email')}</span>
               <span className="text-gray-900">{studentProfile.email}</span>
             </div>
             <div>
@@ -250,30 +252,32 @@ export default function InstructorProjectDetailPage() {
                 onClick={() => navigate(`/instructor/student/${project.owner_id}`)}
                 className="rounded-full border-2 border-gray-200 px-4 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                View Full Profile
+                {t('instructorProjectDetail.viewFullProfile')}
               </button>
             </div>
           </div>
         )}
       </Card>
+      </FadeInCard>
 
       {/* Game Overview (Setup) */}
+      <FadeInCard index={1}>
       <Card>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          Game Overview (Setup)
+          {t('instructorProjectDetail.gameOverview')}
         </p>
         {project.current_step < 1 ? (
-          <p className="text-sm text-gray-400">Student hasn't completed Setup yet.</p>
+          <p className="text-sm text-gray-400">{t('instructorProjectDetail.setupIncomplete')}</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <span className="text-gray-500 block mb-1">Game Title</span>
+              <span className="text-gray-500 block mb-1">{t('setup.gameTitle')}</span>
               <span className="font-bold text-gray-900 text-base">{project.title}</span>
             </div>
 
             {project.genre && project.genre.length > 0 && (
               <div>
-                <span className="text-gray-500 block mb-1">Genre</span>
+                <span className="text-gray-500 block mb-1">{t('setup.genre')}</span>
                 <div className="flex flex-wrap gap-1">
                   {project.genre.map((g) => (
                     <Badge key={g} variant="blue">{g}</Badge>
@@ -284,7 +288,7 @@ export default function InstructorProjectDetailPage() {
 
             {project.platform && project.platform.length > 0 && (
               <div>
-                <span className="text-gray-500 block mb-1">Platform</span>
+                <span className="text-gray-500 block mb-1">{t('setup.platform')}</span>
                 <div className="flex flex-wrap gap-1">
                   {project.platform.map((p) => (
                     <Badge key={p} variant="default">{p}</Badge>
@@ -295,49 +299,51 @@ export default function InstructorProjectDetailPage() {
 
             {project.target_audience && (
               <div>
-                <span className="text-gray-500 block mb-1">Target Audience</span>
+                <span className="text-gray-500 block mb-1">{t('setup.targetAudience')}</span>
                 <span className="text-gray-900">{project.target_audience}</span>
               </div>
             )}
 
             {project.core_mechanic && (
               <div>
-                <span className="text-gray-500 block mb-1">Core Mechanic</span>
+                <span className="text-gray-500 block mb-1">{t('setup.coreLoop')}</span>
                 <span className="text-gray-900">{project.core_mechanic}</span>
               </div>
             )}
 
             {project.session_length && (
               <div>
-                <span className="text-gray-500 block mb-1">Session Length</span>
+                <span className="text-gray-500 block mb-1">{t('setup.sessionLength')}</span>
                 <span className="text-gray-900">{project.session_length}</span>
               </div>
             )}
           </div>
         )}
       </Card>
+      </FadeInCard>
 
       {/* Ads Strategy (Build) */}
+      <FadeInCard index={2}>
       <Card>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          Ads Strategy (Build)
+          {t('instructorProjectDetail.adsStrategy')}
         </p>
         {project.current_step < 2 || !adsConfig ? (
           <p className="text-sm text-gray-400">
-            Student hasn't completed the Build step for ads yet.
+            {t('instructorProjectDetail.adsIncomplete')}
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+            <div className="mb-4 grid gap-4 text-sm sm:grid-cols-2">
               {adsConfig.ad_network && (
                 <div>
-                  <span className="text-gray-500">Ad Network:</span>{' '}
+                  <span className="text-gray-500">{t('build.adNetwork')}:</span>{' '}
                   <span className="text-gray-900 font-medium">{adsConfig.ad_network}</span>
                 </div>
               )}
               {adsConfig.revenue_model && (
                 <div>
-                  <span className="text-gray-500">Revenue Model:</span>{' '}
+                  <span className="text-gray-500">{t('build.revenueModel')}:</span>{' '}
                   <span className="text-gray-900 font-medium uppercase">
                     {adsConfig.revenue_model}
                   </span>
@@ -346,14 +352,14 @@ export default function InstructorProjectDetailPage() {
             </div>
 
             {adPlacements.length === 0 ? (
-              <p className="text-sm text-gray-400">No ad placements added.</p>
+              <p className="text-sm text-gray-400">{t('instructorProjectDetail.noAdPlacements')}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-black/5">
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Type</th>
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Trigger</th>
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Freq Cap</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('common.type')}</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('instructorProjectDetail.trigger')}</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('instructorProjectDetail.freqCap')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -374,7 +380,7 @@ export default function InstructorProjectDetailPage() {
                       </td>
                       <td className="py-2.5 text-gray-700">{placement.trigger_point ?? '—'}</td>
                       <td className="py-2.5 text-gray-500">
-                        {placement.frequency_cap ?? 'None'}
+                        {placement.frequency_cap ?? t('build.noCap')}
                       </td>
                     </tr>
                   ))}
@@ -384,38 +390,40 @@ export default function InstructorProjectDetailPage() {
           </>
         )}
       </Card>
+      </FadeInCard>
 
       {/* IAP Catalog (Build) */}
+      <FadeInCard index={3}>
       <Card>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          IAP Catalog (Build)
+          {t('instructorProjectDetail.iapCatalog')}
         </p>
         {project.current_step < 2 || !iapConfig ? (
           <p className="text-sm text-gray-400">
-            Student hasn't completed the Build step for IAP yet.
+            {t('instructorProjectDetail.iapIncomplete')}
           </p>
         ) : (
           <>
             {iapConfig.store && (
               <p className="text-sm text-gray-500 mb-3">
-                Store:{' '}
+                {t('build.selectStore')}:{' '}
                 <span className="font-bold text-gray-700">
                   {iapConfig.store.replace('_', ' ')}
                 </span>
-                {iapConfig.currency && ` · Currency: ${iapConfig.currency}`}
+                {iapConfig.currency && ` · ${t('instructorProjectDetail.currency')}: ${iapConfig.currency}`}
               </p>
             )}
 
             {iapItems.length === 0 ? (
-              <p className="text-sm text-gray-400">No IAP items added.</p>
+              <p className="text-sm text-gray-400">{t('instructorProjectDetail.noIapItems')}</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-black/5">
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Name</th>
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Type</th>
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Price</th>
-                    <th className="text-left text-xs font-bold text-gray-400 pb-2">Description</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('common.name')}</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('common.type')}</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('build.price')}</th>
+                    <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('instructorCourses.description')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -437,14 +445,16 @@ export default function InstructorProjectDetailPage() {
           </>
         )}
       </Card>
+      </FadeInCard>
 
       {/* Instructor Review Panel */}
+      <FadeInCard index={4}>
       <Card className="border-primary/20">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-          Instructor Review
+          {t('instructorProjectDetail.reviewTitle')}
         </p>
         <p className="text-xs text-gray-400 mb-5">
-          Actions here update the project status visible to the student.
+          {t('instructorProjectDetail.reviewSubtitle')}
         </p>
 
         {reviewError && (
@@ -457,15 +467,14 @@ export default function InstructorProjectDetailPage() {
         {(project.status === 'submitted' || project.status === 'resubmitted') && (
           <div className="space-y-4">
             <p className="text-sm text-gray-600 leading-6">
-              Student has submitted this project. Mark it as under review to begin grading —
-              this will lock the student from editing while you review.
+              {t('instructorProjectDetail.submittedHelp')}
             </p>
             <button
               onClick={handleMarkUnderReview}
               disabled={reviewLoading}
               className="rounded-full border-2 border-primary/30 px-5 py-2.5 text-sm font-bold text-primary hover:bg-primary/5 disabled:opacity-50 transition-colors"
             >
-              {reviewLoading ? 'Updating...' : 'Mark as Under Review'}
+              {reviewLoading ? t('instructorProjects.updating') : t('instructorProjectDetail.markUnderReview')}
             </button>
           </div>
         )}
@@ -476,17 +485,17 @@ export default function InstructorProjectDetailPage() {
             {/* Send Back section */}
             <div className="border-2 border-orange-200 rounded-2xl p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600 mb-3">
-                Send Back for Revision
+                {t('instructorProjectDetail.sendBackTitle')}
               </p>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Comment for student <span className="text-red-500">*</span>
+                  {t('instructorProjectDetail.commentForStudent')} <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={sendBackComment}
                   onChange={(e) => setSendBackComment(e.target.value)}
                   rows={3}
-                  placeholder="Explain what the student needs to fix..."
+                  placeholder={t('instructorProjectDetail.returnPlaceholder')}
                   className={textareaCls}
                 />
               </div>
@@ -495,18 +504,18 @@ export default function InstructorProjectDetailPage() {
                 disabled={reviewLoading}
                 className="rounded-full border-2 border-orange-300 px-5 py-2.5 text-sm font-bold text-orange-600 hover:bg-orange-50 disabled:opacity-50 transition-colors"
               >
-                {reviewLoading ? 'Sending...' : 'Send Back for Revision'}
+                {reviewLoading ? t('instructorProjectDetail.sending') : t('instructorProjectDetail.sendBackTitle')}
               </button>
             </div>
 
             {/* Give Grade section */}
             <div className="border-2 border-green-200 rounded-2xl p-4">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-600 mb-3">
-                Give Grade
+                {t('instructorProjectDetail.giveGrade')}
               </p>
               <div className="mb-3 max-w-xs">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Grade (0–100) <span className="text-red-500">*</span>
+                  {t('instructorProjectDetail.gradeLabel')} <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="number"
@@ -514,20 +523,20 @@ export default function InstructorProjectDetailPage() {
                   max={100}
                   value={gradeValue}
                   onChange={(e) => setGradeValue(e.target.value)}
-                  placeholder="e.g. 85"
+                  placeholder={t('instructorProjectDetail.gradePlaceholder')}
                   className={inputCls}
                 />
               </div>
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Comment{' '}
-                  <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                  {t('instructorProjectDetail.comment')}{' '}
+                  <span className="text-gray-400 font-normal text-xs">{t('instructorProjectDetail.optional')}</span>
                 </label>
                 <textarea
                   value={gradeComment}
                   onChange={(e) => setGradeComment(e.target.value)}
                   rows={2}
-                  placeholder="Additional feedback (optional)..."
+                  placeholder={t('instructorProjectDetail.feedbackPlaceholder')}
                   className={textareaCls}
                 />
               </div>
@@ -536,7 +545,7 @@ export default function InstructorProjectDetailPage() {
                 disabled={reviewLoading}
                 className="rounded-full bg-green-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                {reviewLoading ? 'Saving...' : 'Give Grade'}
+                {reviewLoading ? t('common.saving') : t('instructorProjectDetail.giveGrade')}
               </button>
             </div>
           </div>
@@ -545,18 +554,18 @@ export default function InstructorProjectDetailPage() {
         {/* State: graded */}
         {project.status === 'graded' && (
           <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-4 space-y-2">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-600">Graded</p>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-600">{t('status.graded')}</p>
             <p className="text-2xl font-bold text-green-800">
               {project.grade ?? '—'}<span className="text-base font-normal text-green-600">/100</span>
             </p>
             {project.graded_at && (
               <p className="text-xs text-green-500">
-                Graded on {new Date(project.graded_at).toLocaleDateString()}
+                {t('instructorProjectDetail.gradedOn', { date: formatDate(project.graded_at) })}
               </p>
             )}
             {project.instructor_comment && (
               <div className="mt-2 pt-2 border-t border-green-200">
-                <p className="text-xs font-bold text-gray-500 mb-1">Your comment</p>
+                <p className="text-xs font-bold text-gray-500 mb-1">{t('instructorProjectDetail.yourComment')}</p>
                 <p className="text-sm text-gray-700">{project.instructor_comment}</p>
               </div>
             )}
@@ -567,14 +576,14 @@ export default function InstructorProjectDetailPage() {
         {project.status === 'returned' && (
           <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 space-y-2">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-orange-600">
-              Returned to Student
+              {t('instructorProjectDetail.returnedToStudent')}
             </p>
             <p className="text-xs text-gray-500">
-              Waiting for student to revise and resubmit.
+              {t('instructorProjectDetail.waitingRevision')}
             </p>
             {project.instructor_comment && (
               <div className="mt-2 pt-2 border-t border-orange-200">
-                <p className="text-xs font-bold text-gray-500 mb-1">Your comment</p>
+                <p className="text-xs font-bold text-gray-500 mb-1">{t('instructorProjectDetail.yourComment')}</p>
                 <p className="text-sm text-gray-700">{project.instructor_comment}</p>
               </div>
             )}
@@ -584,10 +593,11 @@ export default function InstructorProjectDetailPage() {
         {/* State: draft (not submitted yet) */}
         {project.status === 'draft' && (
           <p className="text-sm text-gray-400">
-            Student hasn't submitted this project yet.
+            {t('instructorProjectDetail.notSubmitted')}
           </p>
         )}
       </Card>
+      </FadeInCard>
     </PageContainer>
   )
 }

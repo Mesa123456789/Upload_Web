@@ -304,25 +304,6 @@ export default function InstructorCoursesPage() {
         )}
       </AnimatePresence>
 
-      {/* Page header */}
-      <div className="flex flex-wrap items-start justify-between gap-5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-            {t('dashboard.instructor.eyebrow')}
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{t('instructorCourses.title')}</h1>
-          <p className="text-sm text-gray-500 leading-6 mt-1">
-            {t('instructorCourses.subtitle')}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreateForm((v) => !v)}
-          className="rounded-full bg-[#ffd032] px-6 py-3 text-sm font-bold text-black shadow-sm transition-colors hover:bg-[#f2bd18]"
-        >
-          {showCreateForm ? t('common.cancel') : t('instructorCourses.add')}
-        </button>
-      </div>
-
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
           {error}
@@ -389,6 +370,15 @@ export default function InstructorCoursesPage() {
       )}
 
       {/* Create Course Form — hidden behind "Add Course" button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => setShowCreateForm((v) => !v)}
+          className="rounded-full bg-[#ffd032] px-6 py-3 text-sm font-bold text-black shadow-sm transition-colors hover:bg-[#f2bd18]"
+        >
+          {showCreateForm ? t('common.cancel') : t('instructorCourses.add')}
+        </button>
+      </div>
+
       {showCreateForm && (
         <FadeInCard index={0}>
         <Card>

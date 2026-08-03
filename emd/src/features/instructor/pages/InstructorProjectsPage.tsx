@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { ChevronDown } from 'lucide-react'
 import { listInstructorCourses } from '../../courses/services/courses.service'
 import {
   listCourseProjects,
@@ -8,10 +10,10 @@ import {
 import { getProfile } from '../../profile/services/profiles.service'
 import type { Course, Project, Profile } from '../../../lib/database.types'
 import PageContainer from '../../../app/layout/PageContainer'
-import Card from '../../../shared/components/Card'
 import Badge from '../../../shared/components/Badge'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import { useI18n } from '../../../i18n/I18nProvider'
+import { dropdownVariants, transitions } from '../../../shared/motion'
 
 // Project row enriched with the student's profile
 type ProjectWithStudent = Project & { studentProfile: Profile | null }
@@ -67,6 +69,7 @@ function statusVariant(status: Project['status']): 'default' | 'blue' | 'green' 
 export default function InstructorProjectsPage() {
   const navigate = useNavigate()
   const { t, formatDate } = useI18n()
+  const reduceMotion = useReducedMotion()
 
   // Read ?courseId=xxx from URL — CoursesPage "View Projects" button sets this
   const [searchParams] = useSearchParams()
@@ -79,6 +82,7 @@ export default function InstructorProjectsPage() {
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [courseMenuOpen, setCourseMenuOpen] = useState(false)
 
   useEffect(() => {
     async function loadCourses() {
@@ -173,18 +177,11 @@ export default function InstructorProjectsPage() {
     return <ProjectsTableSkeleton />
   }
 
+  const selectedCourse = courses.find((course) => course.id === selectedCourseId)
+
   return (
     <PageContainer>
-      {/* Page header */}
-      <div className="flex flex-wrap items-start justify-between gap-5">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-            {t('dashboard.instructor.eyebrow')}
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{t('instructorProjects.title')}</h1>
-          <p className="text-sm text-gray-500 leading-6 mt-1">{t('instructorProjects.subtitle')}</p>
-        </div>
-
+      <div className="flex justify-end">
         {/* Bulk action: lock all submitted/resubmitted for review */}
         {projects.some((p) => p.status === 'submitted' || p.status === 'resubmitted') && (
           <button
@@ -204,24 +201,57 @@ export default function InstructorProjectsPage() {
       )}
 
       {/* Course filter dropdown */}
-      <div className="space-y-2">
-        <label className="block text-xs font-bold uppercase tracking-[0.18em] text-primary mb-2">
+      <div className="mb-8 space-y-2">
+        <label className="block text-xs font-bold uppercase tracking-[0.18em] text-primary">
           {t('instructorProjects.filterByCourse')}
         </label>
         {courses.length === 0 ? (
           <p className="text-sm text-gray-400">{t('instructorProjects.noCourses')}</p>
         ) : (
-          <select
-            value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="border border-black/10 rounded-xl px-4 py-2.5 text-sm bg-background-card focus:outline-none focus:ring-2 focus:ring-primary/30 w-full max-w-sm"
-          >
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setCourseMenuOpen((open) => !open)}
+              className="flex min-h-[66px] w-full items-center justify-between gap-4 rounded-[14px] border border-[#f97316] bg-white px-4 py-3 text-left outline-none transition hover:border-[#ea580c] focus:border-[#ea580c]"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-[15px] font-normal leading-5 text-[#252326] sm:text-[17px]">
+                  {selectedCourse?.title ?? t('common.noCoursesYet')}
+                </span>
+                <span className="mt-1 block truncate text-[11px] leading-4 text-[#77716c]">
+                  {t('projects.inviteCode', { code: selectedCourse?.invite_code ?? '-' })}
+                </span>
+              </span>
+              <ChevronDown className={`h-5 w-5 shrink-0 text-[#5f5a56] transition ${courseMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {courseMenuOpen && (
+                <motion.div
+                  initial={reduceMotion ? false : 'initial'}
+                  animate={reduceMotion ? undefined : 'animate'}
+                  exit={reduceMotion ? undefined : 'exit'}
+                  variants={dropdownVariants}
+                  transition={transitions.fast}
+                  className="absolute left-0 right-0 top-[calc(100%+8px)] z-20 origin-top overflow-hidden rounded-[16px] border border-[#ddd9d5] bg-white shadow-[0_14px_28px_rgba(17,24,39,0.14)]"
+                >
+                  {courses.map((course) => (
+                    <button
+                      key={course.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCourseId(course.id)
+                        setCourseMenuOpen(false)
+                      }}
+                      className="block w-full px-4 py-3 text-left transition hover:bg-slate-50"
+                    >
+                      <span className="block truncate text-sm text-[#252326]">{course.title}</span>
+                      <span className="mt-1 block truncate text-[11px] text-[#77716c]">{t('projects.inviteCode', { code: course.invite_code })}</span>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
@@ -237,14 +267,14 @@ export default function InstructorProjectsPage() {
           ))}
         </div>
       ) : (
-        <Card className="overflow-hidden">
+        <div className="overflow-hidden rounded-[24px] bg-white px-6 py-7 shadow-[0_18px_35px_rgba(17,24,39,0.08)] sm:rounded-[28px] sm:px-10">
           {projects.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">
+            <p className="py-12 text-center text-sm text-slate-500">
               {t('instructorProjects.empty')}
             </p>
           ) : (
             <div className="overflow-x-auto">
-            <table className="ds-table min-w-[880px] table-fixed text-sm">
+            <table className="w-full min-w-[880px] table-fixed text-sm">
               <colgroup>
                 <col className="w-[18%]" />
                 <col className="w-[22%]" />
@@ -254,54 +284,56 @@ export default function InstructorProjectsPage() {
                 <col className="w-[16%]" />
               </colgroup>
               <thead>
-                <tr className="border-b border-black/5">
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">{t('common.student')}</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">{t('projects.table.projectName')}</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">{t('projects.table.currentStep')}</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">{t('projects.table.status')}</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">{t('projects.table.lastUpdated')}</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">{t('common.actions')}</th>
+                <tr className="border-b border-[#e5e7eb]">
+                  <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('common.student')}</th>
+                  <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.projectName')}</th>
+                  <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.currentStep')}</th>
+                  <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.status')}</th>
+                  <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.lastUpdated')}</th>
+                  <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
                 {projects.map((project) => (
-                  <tr key={project.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
+                  <tr key={project.id} className="border-b border-[#e5e7eb] last:border-0">
                     {/* Student info */}
-                    <td>
-                      <div className="ds-one-line text-sm font-medium text-gray-800">
+                    <td className="py-5 pr-4">
+                      <div className="truncate text-sm font-medium text-slate-700">
                         {project.studentProfile?.display_name ?? t('common.unknown')}
                       </div>
                       {project.studentProfile?.student_code && (
-                        <div className="ds-one-line font-mono text-xs text-gray-400">
+                        <div className="truncate font-mono text-xs text-slate-400">
                           {project.studentProfile.student_code}
                         </div>
                       )}
                     </td>
-                    <td className="ds-one-line font-medium text-gray-800">{project.title}</td>
-                    <td>
+                    <td className="py-5 pr-4">
+                      <div className="truncate font-medium text-slate-700">{project.title}</div>
+                    </td>
+                    <td className="py-5 pr-4">
                       <Badge variant={stepVariant(project.current_step)} className="max-w-full">
                         {t(stepLabelKey(project.current_step))}
                       </Badge>
                     </td>
-                    <td>
+                    <td className="py-5 pr-4">
                       <Badge variant={statusVariant(project.status)} className="max-w-full">
                         {t(`status.${project.status}`)}
                       </Badge>
                     </td>
-                    <td className="ds-one-line text-gray-400 text-xs">
+                    <td className="py-5 pr-4 text-xs text-slate-400">
                       {formatDate(project.updated_at)}
                     </td>
-                    <td>
-                      <div className="flex gap-2 items-center flex-wrap">
+                    <td className="py-5">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => navigate(`/instructor/project/${project.id}`)}
-                          className="inline-flex min-w-[58px] items-center justify-center rounded-full border-2 border-primary/30 px-3 py-1 text-xs font-bold text-primary hover:bg-primary/5 transition-colors"
+                          className="inline-flex min-w-[58px] items-center justify-center rounded-full border-2 border-primary/30 px-3 py-1 text-xs font-bold text-primary transition-colors hover:bg-primary/5"
                         >
                           {t('common.view')}
                         </button>
                         <button
                           onClick={() => navigate(`/instructor/student/${project.owner_id}`)}
-                          className="inline-flex min-w-[72px] items-center justify-center rounded-full border-2 border-gray-200 px-3 py-1 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+                          className="inline-flex min-w-[72px] items-center justify-center rounded-full border-2 border-slate-200 px-3 py-1 text-xs font-bold text-slate-500 transition-colors hover:bg-slate-50"
                         >
                           {t('common.profile')}
                         </button>
@@ -324,7 +356,7 @@ export default function InstructorProjectsPage() {
             </table>
             </div>
           )}
-        </Card>
+        </div>
       )}
     </PageContainer>
   )

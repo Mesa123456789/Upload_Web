@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ChevronDown, Plus } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import type { Course, Project } from '../../../lib/database.types'
 import { useI18n } from '../../../i18n/I18nProvider'
 import Badge from '../../../shared/components/Badge'
@@ -11,12 +11,10 @@ import { dropdownVariants, transitions } from '../../../shared/motion'
 interface StudentProjectsPanelProps {
   courseData: CourseWithProjects[]
   visibleCourseData: CourseWithProjects[]
-  projects: Project[]
   selectedCourse?: Course
   filterCourseId: string
   onFilterCourseChange: (courseId: string) => void
   error?: string | null
-  headingLevel?: 'h1' | 'h2'
 }
 
 function getStepInfo(step: number): { labelKey: string; variant: 'blue' | 'yellow' | 'purple' | 'green' } {
@@ -39,40 +37,48 @@ function getProjectPath(projectId: string, step: number): string {
   }
 }
 
+function statusVariant(status: Project['status']): 'default' | 'blue' | 'green' | 'yellow' | 'purple' | 'red' {
+  switch (status) {
+    case 'submitted': return 'blue'
+    case 'resubmitted': return 'yellow'
+    case 'under_review': return 'purple'
+    case 'returned': return 'red'
+    case 'graded': return 'green'
+    default: return 'default'
+  }
+}
+
 export default function StudentProjectsPanel({
   courseData,
   visibleCourseData,
-  projects,
   selectedCourse,
   filterCourseId,
   onFilterCourseChange,
   error,
-  headingLevel = 'h2',
 }: StudentProjectsPanelProps) {
   const navigate = useNavigate()
-  const { t, formatDate, formatNumber } = useI18n()
+  const { t, formatDate } = useI18n()
   const reduceMotion = useReducedMotion()
   const [courseMenuOpen, setCourseMenuOpen] = useState(false)
-  const Heading = headingLevel
   const selectedCourseLabel = filterCourseId === ALL_STUDENT_COURSES ? t('projects.allCourses') : selectedCourse?.title ?? t('projects.allCourses')
   const selectedCourseSubtext = filterCourseId === ALL_STUDENT_COURSES
     ? t('projects.joinedCourse', { count: courseData.length })
     : t('projects.inviteCode', { code: selectedCourse?.invite_code ?? '-' })
+  const projectRows = visibleCourseData.flatMap(({ course, projects }) =>
+    projects.map((project) => ({ course, project })),
+  )
 
   return (
     <section id="projects" className="scroll-mt-28">
-      <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <Heading className="min-w-0 text-[24px] font-normal leading-tight text-black sm:text-[28px]">{t('projects.myProjects')}</Heading>
-        <span className="shrink-0 text-[16px] font-normal text-[#8a8580] sm:text-[18px]">
-          {t('common.activeCount', { count: formatNumber(projects.length) })}
-        </span>
-      </div>
-
-      <div className="relative mb-5">
+      <div className="mb-8 space-y-2">
+        <label className="block text-xs font-bold uppercase tracking-[0.18em] text-primary">
+          {t('instructorProjects.filterByCourse')}
+        </label>
+        <div className="relative">
         <button
           type="button"
           onClick={() => setCourseMenuOpen((open) => !open)}
-          className="flex min-h-[64px] w-full items-center justify-between gap-4 rounded-[16px] border border-[#ddd9d5] bg-white px-4 py-3 text-left outline-none transition hover:border-[#f97316] focus:border-[#f97316]"
+          className="flex min-h-[66px] w-full items-center justify-between gap-4 rounded-[14px] border border-[#f97316] bg-white px-4 py-3 text-left outline-none transition hover:border-[#ea580c] focus:border-[#ea580c]"
         >
           <span className="min-w-0">
             <span className="block truncate text-[15px] font-normal leading-5 text-[#252326] sm:text-[17px]">
@@ -122,6 +128,7 @@ export default function StudentProjectsPanel({
           </motion.div>
         )}
         </AnimatePresence>
+        </div>
       </div>
 
       {error && (
@@ -141,75 +148,67 @@ export default function StudentProjectsPanel({
           </button>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-[24px] bg-white p-3 shadow-[0_14px_28px_rgba(17,24,39,0.08)] sm:p-4">
-          {visibleCourseData.map(({ course, projects }) => (
-            <div key={course.id} className="border-b border-black/5 py-4 first:pt-0 last:border-0 last:pb-0">
-              <div className="mb-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="ds-eyebrow">{t('projects.course')}</p>
-                  <h3 className="mt-1 truncate text-base font-black text-slate-950">{course.title}</h3>
-                  {course.description && (
-                    <p className="mt-1 text-sm leading-6 text-slate-500">{course.description}</p>
-                  )}
-                </div>
-                <button
-                  onClick={() => navigate(`/project/new?courseId=${course.id}`)}
-                  className="ds-button ds-button-primary w-full sm:w-auto sm:min-w-[190px]"
-                >
-                  <Plus className="h-4 w-4" />
-                  {t('projects.createNew')}
-                </button>
-              </div>
-
-              {projects.length === 0 ? (
-                <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                  {t('projects.emptyCourse')}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="ds-table min-w-[780px] table-fixed">
-                    <colgroup>
-                      <col className="w-[30%]" />
-                      <col className="w-[16%]" />
-                      <col className="w-[18%]" />
-                      <col className="w-[18%]" />
-                      <col className="w-[18%]" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>{t('projects.table.projectName')}</th>
-                        <th>{t('projects.table.status')}</th>
-                        <th>{t('projects.table.currentStep')}</th>
-                        <th>{t('projects.table.lastUpdated')}</th>
-                        <th className="text-right">{t('projects.table.action')}</th>
+        <div className="overflow-hidden rounded-[24px] bg-white px-6 py-7 shadow-[0_18px_35px_rgba(17,24,39,0.08)] sm:rounded-[28px] sm:px-10">
+          {projectRows.length === 0 ? (
+            <div className="py-12 text-center text-sm text-slate-500">{t('projects.emptyCourse')}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[880px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[18%]" />
+                  <col className="w-[22%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[16%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-[#e5e7eb]">
+                    <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.course')}</th>
+                    <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.projectName')}</th>
+                    <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.currentStep')}</th>
+                    <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.status')}</th>
+                    <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('projects.table.lastUpdated')}</th>
+                    <th className="pb-4 text-left text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{t('common.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectRows.map(({ course, project }) => {
+                    const stepInfo = getStepInfo(project.current_step)
+                    return (
+                      <tr key={project.id} className="border-b border-[#e5e7eb] last:border-0">
+                        <td className="py-5 pr-4">
+                          <div className="truncate font-medium text-slate-700">{course.title}</div>
+                        </td>
+                        <td className="py-5 pr-4">
+                          <div className="truncate font-medium text-slate-700">{project.title}</div>
+                        </td>
+                        <td className="py-5 pr-4">
+                          <Badge variant={stepInfo.variant} className="max-w-full">
+                            {t(stepInfo.labelKey)}
+                          </Badge>
+                        </td>
+                        <td className="py-5 pr-4">
+                          <Badge variant={statusVariant(project.status)} className="max-w-full">
+                            {t(`status.${project.status}`)}
+                          </Badge>
+                        </td>
+                        <td className="py-5 pr-4 text-xs text-slate-400">{formatDate(project.updated_at)}</td>
+                        <td className="py-5">
+                          <button
+                            onClick={() => navigate(getProjectPath(project.id, project.current_step))}
+                            className="inline-flex min-w-[58px] items-center justify-center rounded-full border-2 border-primary/30 px-3 py-1 text-xs font-bold text-primary transition-colors hover:bg-primary/5"
+                          >
+                            {t('common.view')}
+                          </button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {projects.map((project) => {
-                        const stepInfo = getStepInfo(project.current_step)
-                        return (
-                          <tr key={project.id}>
-                            <td className="ds-one-line font-bold text-slate-900">{project.title}</td>
-                            <td><Badge className="max-w-full">{t(`status.${project.status}`)}</Badge></td>
-                            <td><Badge variant={stepInfo.variant} className="max-w-full">{t(stepInfo.labelKey)}</Badge></td>
-                            <td className="ds-one-line text-slate-500">{formatDate(project.updated_at)}</td>
-                            <td className="text-right">
-                              <button
-                                onClick={() => navigate(getProjectPath(project.id, project.current_step))}
-                                className="ds-button ds-button-secondary min-h-0 min-w-[86px] px-4 py-2 text-xs"
-                              >
-                                {t('common.open')}
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
+          )}
         </div>
       )}
     </section>

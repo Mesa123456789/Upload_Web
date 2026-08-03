@@ -16,6 +16,7 @@ import ProfilePage from '../features/profile/pages/ProfilePage'
 import InstructorDashboardPage from '../features/instructor/pages/InstructorDashboardPage'
 import InstructorCoursesPage from '../features/instructor/pages/InstructorCoursesPage'
 import InstructorProjectsPage from '../features/instructor/pages/InstructorProjectsPage'
+import InstructorStudentsPage from '../features/instructor/pages/InstructorStudentsPage'
 import InstructorProjectDetailPage from '../features/instructor/pages/InstructorProjectDetailPage'
 import InstructorStudentProfilePage from '../features/instructor/pages/InstructorStudentProfilePage'
 import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
@@ -128,6 +129,10 @@ export const router = createBrowserRouter([
           {
             path: '/instructor/projects',
             element: <InstructorProjectsPage />,
+          },
+          {
+            path: '/instructor/students',
+            element: <InstructorStudentsPage />,
           },
           {
             // Read-only detail view of a single student project

@@ -13,6 +13,7 @@
   "navigation": {
     "dashboard": "Dashboard",
     "projects": "Projects",
+    "students": "Students",
     "profile": "Profile",
     "openProfile": "Open profile"
   },
@@ -93,6 +94,7 @@
       "title": "Dashboard",
       "subtitle": "Overview of your projects, submissions, and guardrail progress.",
       "joinCourse": "Join Course",
+      "addProject": "Add Project",
       "stats": {
         "activeProjects": "Active Projects",
         "outputReady": "Output Ready",
@@ -117,6 +119,28 @@
       "noTopicData": "No topic data yet",
       "noStudents": "No students enrolled yet",
       "addCourse": "Add course"
+    },
+    "bento": {
+      "course": "course",
+      "activeProjects": "Active Projects",
+      "students": "students",
+      "noStudents": "No students yet",
+      "viewProfile": "View profile",
+      "viewAllStudents": "View all students",
+      "submittedReady": "Submitted Ready",
+      "submittedHint": "review queue is prepared",
+      "integratedAi": "Integrated AI",
+      "aiQuestion": "What is EMD?",
+      "aiAnswer": "Design ethical monetization plans.",
+      "guardrailReadiness": "Guardrail readiness is {{percent}}%",
+      "reviewQueue": "Review Queue",
+      "reviewHint": "instructor feedback signals",
+      "popularTopic": "Popular Topic",
+      "popularHint": "top project genres",
+      "topicsByProject": "Topics by Project",
+      "noTopicData": "No topic data yet",
+      "grade": "Grade",
+      "generateProgressReport": "Generate progress report"
     }
   },
   "joinCourse": {
@@ -192,6 +216,13 @@
     "bulkUpdateFailed": "Failed to update some projects",
     "statusUpdateFailed": "Failed to update status",
     "underReview": "Under Review"
+  },
+  "instructorStudents": {
+    "title": "Students",
+    "subtitle": "Browse enrolled students by course",
+    "projects": "Projects",
+    "empty": "No students found in this course yet.",
+    "loadFailed": "Failed to load students"
   },
   "instructorStudent": {
     "notFound": "Student not found",

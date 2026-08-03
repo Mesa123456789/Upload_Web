@@ -1,36 +1,16 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { FolderPlus, Plus } from 'lucide-react'
 import { useAuth } from '../../auth/context/useAuth'
 import { useI18n } from '../../../i18n/I18nProvider'
 import PageContainer from '../../../app/layout/PageContainer'
 import { Skeleton } from '../../../shared/components/Skeleton'
+import StudentBento from '../../../components/animata/bento-grid/student'
 import StudentProjectsPanel from '../components/StudentProjectsPanel'
 import { useStudentCourseProjects } from '../hooks/useStudentCourseProjects'
 
-type Accent = 'blue' | 'green' | 'orange' | 'yellow'
-
-function StatCard({
-  label,
-  value,
-  accent,
-  watermark,
-}: {
-  label: string
-  value: string
-  accent: Accent
-  watermark: string
-}) {
-  return (
-    <div className={`relative h-[156px] overflow-hidden rounded-[24px] px-5 py-5 text-white shadow-sm sm:h-[172px] sm:rounded-[28px] sm:px-7 sm:py-6 xl:h-[166px] 2xl:h-[188px] 2xl:rounded-[30px] 2xl:px-8 2xl:py-7 ds-stat-${accent}`}>
-      <p className="ds-stat-card-label text-[18px] font-medium drop-shadow-md sm:text-[22px] 2xl:text-[24px]">{label}</p>
-      <p className="ds-stat-card-value text-center text-[52px] font-black leading-none text-[#fff3e4] drop-shadow-[0_8px_8px_rgba(48,34,38,0.35)] sm:text-[64px] 2xl:text-[72px]">
-        {value}
-      </p>
-      <span className="ds-stat-card-watermark pointer-events-none absolute -bottom-5 right-0 text-[150px] font-black leading-none text-white/20 sm:-bottom-6 sm:text-[190px] 2xl:-bottom-7 2xl:text-[220px]">
-        {watermark}
-      </span>
-    </div>
-  )
+function normalizeBars(values: number[], minimum = 18) {
+  const max = Math.max(...values, 1)
+  return values.map((value) => value === 0 ? 8 : Math.max(minimum, Math.round((value / max) * 100)))
 }
 
 function DashboardSkeleton() {
@@ -57,7 +37,7 @@ function DashboardSkeleton() {
 
 export default function StudentDashboardPage() {
   const { user } = useAuth()
-  const { t, formatNumber } = useI18n()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const {
     courseData,
@@ -71,15 +51,39 @@ export default function StudentDashboardPage() {
   } = useStudentCourseProjects(user?.id)
 
   const activeProjects = projects.length
-  const readyProjects = projects.filter((project) => project.current_step >= 4).length
   const submittedProjects = projects.filter((project) => project.status !== 'draft').length
   const guardrailReady = projects.filter((project) => project.current_step >= 3).length
+  const gradedProjects = projects.filter((project) => project.grade != null)
+  const gradeAverage = gradedProjects.length > 0
+    ? Math.round(gradedProjects.reduce((total, project) => total + (project.grade ?? 0), 0) / gradedProjects.length)
+    : null
+  const stepCounts = {
+    setup: projects.filter((project) => project.current_step <= 1).length,
+    build: projects.filter((project) => project.current_step === 2).length,
+    output: projects.filter((project) => project.current_step >= 4).length,
+  }
+  const reportBars = normalizeBars([
+    stepCounts.setup,
+    stepCounts.build,
+    guardrailReady,
+    stepCounts.output,
+  ], 16)
+  const addProjectCourseId = selectedCourse?.id ?? courseData[0]?.course.id
 
   if (loading) return <DashboardSkeleton />
 
   return (
     <PageContainer>
-      <div className="mb-6 flex justify-end sm:mb-8">
+      <div className="mb-6 flex flex-wrap justify-end gap-3 sm:mb-8">
+        <button
+          onClick={() => addProjectCourseId && navigate(`/project/new?courseId=${addProjectCourseId}`)}
+          disabled={!addProjectCourseId}
+          className="ds-button ds-button-secondary min-w-[150px]"
+          title={!addProjectCourseId ? t('common.noCoursesYet') : undefined}
+        >
+          <FolderPlus className="h-4 w-4" />
+          {t('dashboard.student.addProject')}
+        </button>
         <button
           onClick={() => navigate('/join')}
           className="ds-button ds-button-yellow min-w-[150px]"
@@ -89,17 +93,19 @@ export default function StudentDashboardPage() {
         </button>
       </div>
 
-      <div className="grid auto-rows-fr gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label={t('dashboard.student.stats.activeProjects')} value={formatNumber(activeProjects)} accent="blue" watermark="C" />
-        <StatCard label={t('dashboard.student.stats.outputReady')} value={formatNumber(readyProjects)} accent="green" watermark="A" />
-        <StatCard label={t('dashboard.student.stats.submitted')} value={formatNumber(submittedProjects)} accent="orange" watermark="M" />
-        <StatCard label={t('dashboard.student.stats.guardrailReady')} value={formatNumber(guardrailReady)} accent="yellow" watermark="T" />
-      </div>
+      <StudentBento
+        courses={courseData.length}
+        activeProjects={activeProjects}
+        submittedReady={submittedProjects}
+        gradeAverage={gradeAverage}
+        guardrailReady={guardrailReady}
+        stepCounts={stepCounts}
+        reportBars={reportBars}
+      />
 
       <StudentProjectsPanel
         courseData={courseData}
         visibleCourseData={visibleCourseData}
-        projects={projects}
         selectedCourse={selectedCourse}
         filterCourseId={filterCourseId}
         onFilterCourseChange={setFilterCourseId}

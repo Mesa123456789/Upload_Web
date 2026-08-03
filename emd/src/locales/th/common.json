@@ -13,6 +13,7 @@
   "navigation": {
     "dashboard": "แดชบอร์ด",
     "projects": "โปรเจกต์",
+    "students": "นักศึกษา",
     "profile": "โปรไฟล์",
     "openProfile": "เปิดโปรไฟล์"
   },
@@ -98,7 +99,8 @@
         "outputReady": "พร้อมส่ง Output",
         "submitted": "ส่งแล้ว",
         "guardrailReady": "Guardrail พร้อม"
-      }
+      },
+      "addProject": "เพิ่มโปรเจกต์"
     },
     "instructor": {
       "eyebrow": "ผู้สอน",
@@ -117,6 +119,28 @@
       "noTopicData": "ยังไม่มีข้อมูลหัวข้อ",
       "noStudents": "ยังไม่มีนักศึกษาลงทะเบียน",
       "addCourse": "เพิ่มรายวิชา"
+    },
+    "bento": {
+      "course": "รายวิชา",
+      "activeProjects": "โปรเจกต์ที่กำลังทำ",
+      "students": "นักศึกษา",
+      "noStudents": "ยังไม่มีนักศึกษา",
+      "viewProfile": "ดูโปรไฟล์",
+      "viewAllStudents": "ดูนักศึกษาทั้งหมด",
+      "submittedReady": "พร้อมตรวจ",
+      "submittedHint": "คิวตรวจพร้อมแล้ว",
+      "integratedAi": "AI ในตัว",
+      "aiQuestion": "EMD คืออะไร?",
+      "aiAnswer": "ออกแบบแผนรายได้อย่างมีจริยธรรม",
+      "guardrailReadiness": "ความพร้อม Guardrail {{percent}}%",
+      "reviewQueue": "คิวตรวจ",
+      "reviewHint": "สัญญาณข้อเสนอแนะผู้สอน",
+      "popularTopic": "หัวข้อยอดนิยม",
+      "popularHint": "ประเภทโปรเจกต์ยอดนิยม",
+      "topicsByProject": "หัวข้อตามโปรเจกต์",
+      "noTopicData": "ยังไม่มีข้อมูลหัวข้อ",
+      "grade": "คะแนน",
+      "generateProgressReport": "สร้างรายงานความคืบหน้า"
     }
   },
   "joinCourse": {
@@ -192,6 +216,13 @@
     "bulkUpdateFailed": "อัปเดตบางโปรเจกต์ไม่สำเร็จ",
     "statusUpdateFailed": "อัปเดตสถานะไม่สำเร็จ",
     "underReview": "กำลังตรวจ"
+  },
+  "instructorStudents": {
+    "title": "นักศึกษา",
+    "subtitle": "ดูรายชื่อนักศึกษาที่ลงทะเบียน แยกตามรายวิชา",
+    "projects": "โปรเจกต์",
+    "empty": "ยังไม่มีนักศึกษาในรายวิชานี้",
+    "loadFailed": "โหลดรายชื่อนักศึกษาไม่สำเร็จ"
   },
   "instructorStudent": {
     "notFound": "ไม่พบนักศึกษา",

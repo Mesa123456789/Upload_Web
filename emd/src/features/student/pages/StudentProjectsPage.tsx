@@ -1,4 +1,7 @@
+import { useNavigate } from 'react-router-dom'
+import { FolderPlus } from 'lucide-react'
 import { useAuth } from '../../auth/context/useAuth'
+import { useI18n } from '../../../i18n/I18nProvider'
 import PageContainer from '../../../app/layout/PageContainer'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import StudentProjectsPanel from '../components/StudentProjectsPanel'
@@ -27,16 +30,18 @@ function ProjectsSkeleton() {
 
 export default function StudentProjectsPage() {
   const { user } = useAuth()
+  const { t } = useI18n()
+  const navigate = useNavigate()
   const {
     courseData,
     visibleCourseData,
-    projects,
     selectedCourse,
     filterCourseId,
     setFilterCourseId,
     loading,
     error,
   } = useStudentCourseProjects(user?.id)
+  const addProjectCourseId = selectedCourse?.id ?? courseData[0]?.course.id
 
   if (loading) return <ProjectsSkeleton />
 
@@ -45,13 +50,23 @@ export default function StudentProjectsPage() {
       <StudentProjectsPanel
         courseData={courseData}
         visibleCourseData={visibleCourseData}
-        projects={projects}
         selectedCourse={selectedCourse}
         filterCourseId={filterCourseId}
         onFilterCourseChange={setFilterCourseId}
         error={error}
-        headingLevel="h1"
       />
+
+      <div className="flex justify-end">
+        <button
+          onClick={() => addProjectCourseId && navigate(`/project/new?courseId=${addProjectCourseId}`)}
+          disabled={!addProjectCourseId}
+          className="ds-button ds-button-secondary min-w-[150px]"
+          title={!addProjectCourseId ? t('common.noCoursesYet') : undefined}
+        >
+          <FolderPlus className="h-4 w-4" />
+          {t('dashboard.student.addProject')}
+        </button>
+      </div>
     </PageContainer>
   )
 }

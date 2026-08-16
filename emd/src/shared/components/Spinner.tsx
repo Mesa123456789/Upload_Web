@@ -1,3 +1,5 @@
+import { useI18n } from '../../i18n/I18nProvider'
+
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg'
 }
@@ -9,11 +11,13 @@ const sizeClasses = {
 }
 
 export default function Spinner({ size = 'md' }: SpinnerProps) {
+  const { t } = useI18n()
+
   return (
     <div
       className={`${sizeClasses[size]} rounded-full border-gray-200 border-t-purple-500 animate-spin inline-block`}
       role="status"
-      aria-label="Loading"
+      aria-label={t('common.loadingLabel')}
     />
   )
 }

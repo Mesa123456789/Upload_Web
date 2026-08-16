@@ -5,19 +5,22 @@ import AuthCallbackPage from '../features/auth/pages/AuthCallbackPage'
 import ProtectedRoute from './ProtectedRoute'
 import RoleRoute from './RoleRoute'
 import StudentDashboardPage from '../features/student/pages/StudentDashboardPage'
+import StudentProjectsPage from '../features/student/pages/StudentProjectsPage'
 import JoinCoursePage from '../features/student/pages/JoinCoursePage'
 import CourseDetailPage from '../features/student/pages/CourseDetailPage'
-import SetupPage from '../features/project/pages/SetupPage'
-import BuildPage from '../features/project/pages/BuildPage'
-import GuardrailPage from '../features/project/pages/GuardrailPage'
-import OutputPage from '../features/project/pages/OutputPage'
+import SetupPage from '../features/projects/pages/SetupPage'
+import BuildPage from '../features/projects/pages/BuildPage'
+import GuardrailPage from '../features/projects/pages/GuardrailPage'
+import OutputPage from '../features/projects/pages/OutputPage'
 import ProfilePage from '../features/profile/pages/ProfilePage'
 import InstructorDashboardPage from '../features/instructor/pages/InstructorDashboardPage'
 import InstructorCoursesPage from '../features/instructor/pages/InstructorCoursesPage'
 import InstructorProjectsPage from '../features/instructor/pages/InstructorProjectsPage'
+import InstructorStudentsPage from '../features/instructor/pages/InstructorStudentsPage'
 import InstructorProjectDetailPage from '../features/instructor/pages/InstructorProjectDetailPage'
 import InstructorStudentProfilePage from '../features/instructor/pages/InstructorStudentProfilePage'
-import Spinner from '../shared/components/Spinner'
+import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
+import ProjectLayout from '../features/projects/pages/ProjectLayout'
 
 // RoleRedirect — routes user to their role-specific home page.
 // ProtectedRoute guarantees a session exists before this renders,
@@ -28,11 +31,7 @@ function RoleRedirect() {
   // Show spinner while profile is still being fetched.
   // Returning null here would leave a blank screen — spinner is friendlier.
   if (loading || !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <RouteLoadingSkeleton />
   }
 
   if (profile.role === 'instructor') {
@@ -70,6 +69,10 @@ export const router = createBrowserRouter([
         element: <StudentDashboardPage />,
       },
       {
+        path: '/projects',
+        element: <StudentProjectsPage />,
+      },
+      {
         path: '/join',
         element: <JoinCoursePage />,
       },
@@ -86,26 +89,31 @@ export const router = createBrowserRouter([
 
       // Project flow — /project/new uses SetupPage with courseId from query
       {
-        path: '/project/new',
-        element: <SetupPage />,
-      },
-      {
-        path: '/project/:id/setup',
-        element: <SetupPage />,
-      },
-      {
-        path: '/project/:id/build',
-        element: <BuildPage />,
-      },
-      {
-        path: '/project/:id/guardrail',
-        element: <GuardrailPage />,
-      },
-      {
-        path: '/project/:id/output',
-        element: <OutputPage />,
-      },
+        element: <ProjectLayout />,
+        children: [
+          {
+            path: '/project/new',
+            element: <SetupPage />,
+          },
+          {
+            path: '/project/:id/setup',
+            element: <SetupPage />,
+          },
+          {
+            path: '/project/:id/build',
+            element: <BuildPage />,
+          },
+          {
+            path: '/project/:id/guardrail',
+            element: <GuardrailPage />,
+          },
+          {
+            path: '/project/:id/output',
+            element: <OutputPage />,
+          },
 
+          ],
+        },
       // Instructor routes (require instructor role)
       {
         element: <RoleRoute role="instructor" />,
@@ -121,6 +129,10 @@ export const router = createBrowserRouter([
           {
             path: '/instructor/projects',
             element: <InstructorProjectsPage />,
+          },
+          {
+            path: '/instructor/students',
+            element: <InstructorStudentsPage />,
           },
           {
             // Read-only detail view of a single student project

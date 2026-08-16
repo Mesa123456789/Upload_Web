@@ -1,3 +1,6 @@
+import { motion, useReducedMotion } from 'framer-motion'
+import { cardVariants, transitions } from '../motion'
+
 interface CardProps {
   children: React.ReactNode
   className?: string
@@ -5,14 +8,25 @@ interface CardProps {
 }
 
 export default function Card({ children, className = '', onClick }: CardProps) {
-  const base = 'bg-background-card rounded-xl border border-line shadow-sm p-5'
+  const reduceMotion = useReducedMotion()
+  const base = 'ds-card p-6'
   const interactive = onClick
-    ? 'cursor-pointer transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md'
+    ? 'cursor-pointer'
     : ''
 
   return (
-    <div className={`${base} ${interactive} ${className}`} onClick={onClick}>
+    <motion.div
+      initial={reduceMotion ? false : 'initial'}
+      whileInView={reduceMotion ? undefined : 'animate'}
+      viewport={{ once: true, amount: 0.16 }}
+      variants={cardVariants}
+      transition={transitions.slow}
+      whileHover={reduceMotion ? undefined : { y: -2, scale: onClick ? 1.01 : 1.004 }}
+      whileTap={reduceMotion || !onClick ? undefined : { scale: 0.99 }}
+      className={`${base} motion-card ${interactive} ${className}`}
+      onClick={onClick}
+    >
       {children}
-    </div>
+    </motion.div>
   )
 }

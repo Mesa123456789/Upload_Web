@@ -52,7 +52,7 @@ export default function PageContainer({ children, className = '' }: PageContaine
         initial={false}
         animate={{ left: sidebarWidth }}
         transition={sidebarSlideTransition}
-        className="fixed right-0 top-0 z-20 border-b border-slate-200/80 bg-white/92 px-4 py-3 shadow-[0_10px_24px_rgba(17,24,39,0.04)] backdrop-blur-xl sm:px-6 sm:py-3 lg:px-10 2xl:px-14"
+        className="no-print fixed right-0 top-0 z-20 border-b border-slate-200/80 bg-white/92 px-4 py-3 shadow-[0_10px_24px_rgba(17,24,39,0.04)] backdrop-blur-xl sm:px-6 sm:py-3 lg:px-10 2xl:px-14"
       >
         <div className="flex min-w-0 items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-4">

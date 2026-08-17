@@ -198,7 +198,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
       animate={{ width }}
       transition={sidebarTransition}
       style={{ width }}
-      className="fixed bottom-0 left-0 top-0 z-50 flex h-screen flex-col overflow-visible border-r-2 border-[#F48E2E]/70 bg-white px-3 py-3 text-slate-900 shadow-[14px_0_34px_rgba(244,142,46,0.12)]"
+      className="no-print fixed bottom-0 left-0 top-0 z-50 flex h-screen flex-col overflow-visible border-r-2 border-[#F48E2E]/70 bg-white px-3 py-3 text-slate-900 shadow-[14px_0_34px_rgba(244,142,46,0.12)]"
       aria-label="Application sidebar"
     >
       <div className="flex h-full min-h-0 flex-col overflow-hidden">

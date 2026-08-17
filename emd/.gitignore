@@ -12,9 +12,6 @@ dist
 dist-ssr
 *.local
 
-# Vite dep pre-bundle cache — regenerated automatically, no need to commit
-.vite/
-
 # Environment variables — never commit secrets
 .env
 .env.local
@@ -33,3 +30,5 @@ dist-ssr
 
 .vercel
 .env*
+
+.vercel

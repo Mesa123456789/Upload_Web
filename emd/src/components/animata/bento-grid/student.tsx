@@ -109,8 +109,8 @@ function ReportPreview({ bars }: { bars: number[] }) {
       className="w-32 rounded-xl bg-white p-3 shadow-[0_12px_24px_rgba(17,24,39,0.12)] sm:w-36"
     >
       <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-lime-200">
-          <FileText className="h-4 w-4 text-lime-800" />
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-green-200">
+          <FileText className="h-4 w-4 text-green-800" />
         </span>
         <span className="h-2 w-16 rounded-full bg-slate-200" />
       </div>
@@ -123,7 +123,7 @@ function ReportPreview({ bars }: { bars: number[] }) {
         {safeBars.slice(0, 4).map((height, index) => (
           <motion.span
             key={index}
-            className="mt-auto block rounded-t-md bg-lime-400"
+            className="mt-auto block rounded-t-md bg-green-400"
             initial={{ height: 12 }}
             animate={{ height }}
             transition={{ duration: 0.65, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
@@ -148,18 +148,18 @@ export default function StudentBento({
   return (
     <div className="w-full min-w-0">
       <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-12 sm:auto-rows-[132px] 2xl:auto-rows-[146px]">
-        <BentoCard index={0} className="flex flex-col bg-orange-500 sm:col-span-3">
+        <BentoCard index={0} className="relative flex flex-col bg-orange-500 sm:col-span-3">
           <BookOpen size={36} strokeWidth={2.25} className="shrink-0 text-white" />
           <div className="mt-2 text-sm font-bold leading-tight lowercase text-white">{t('dashboard.bento.course')}</div>
-          <div className="mt-auto flex justify-end">
+          <div className="absolute bottom-4 right-4 flex justify-end">
             <Counter value={courses} className="text-5xl leading-none text-white/75 sm:text-6xl" />
           </div>
         </BentoCard>
 
-        <BentoCard index={1} className="flex flex-col bg-yellow-300 sm:col-span-3">
+        <BentoCard index={1} className="relative flex flex-col bg-yellow-300 sm:col-span-3">
           <FolderKanban size={36} strokeWidth={2.25} className="shrink-0 text-yellow-800" />
           <div className="mt-2 text-sm font-bold leading-tight text-yellow-800">{t('dashboard.bento.activeProjects')}</div>
-          <div className="mt-auto flex justify-end">
+          <div className="absolute bottom-4 right-4 flex justify-end">
             <Counter value={activeProjects} className="text-5xl leading-none text-black/60 sm:text-6xl" />
           </div>
         </BentoCard>
@@ -167,14 +167,14 @@ export default function StudentBento({
         <BentoCard index={2} className="relative flex flex-col bg-violet-500 sm:col-span-3">
           <strong className="text-sm font-bold text-white">{t('dashboard.bento.submittedReady')}</strong>
           <div className="mt-2 text-xs font-medium text-white/75">{t('dashboard.bento.submittedHint')}</div>
-          <div className="mt-auto flex justify-end">
+          <div className="absolute bottom-4 right-4 flex justify-end">
             <Counter value={submittedReady} className="text-5xl leading-none text-white/80 sm:text-6xl" />
           </div>
         </BentoCard>
 
-        <BentoCard index={3} className="flex flex-col bg-blue-500 sm:col-span-3">
+        <BentoCard index={3} className="relative flex flex-col bg-blue-500 sm:col-span-3">
           <strong className="text-sm font-bold text-white">{t('dashboard.bento.grade')}</strong>
-          <div className="mt-auto flex items-end justify-end gap-1">
+          <div className="absolute bottom-4 right-4 flex items-end justify-end gap-1">
             {gradeAverage == null ? (
               <span className="text-5xl font-black leading-none text-white/75 sm:text-6xl">-</span>
             ) : (
@@ -222,8 +222,8 @@ export default function StudentBento({
           </div>
         </BentoCard>
 
-        <BentoCard index={6} className="flex items-center gap-4 bg-lime-300 sm:col-span-4 md:flex-row-reverse">
-          <div className="text-2xl font-black leading-tight text-lime-900">{t('dashboard.bento.generateProgressReport')}</div>
+        <BentoCard index={6} className="flex items-center gap-4 bg-green-300 sm:col-span-4 md:flex-row-reverse">
+          <div className="text-2xl font-black leading-tight text-green-900">{t('dashboard.bento.generateProgressReport')}</div>
           <div className="relative max-h-28 shrink-0 overflow-hidden">
             <ReportPreview bars={reportBars} />
           </div>

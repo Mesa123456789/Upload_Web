@@ -357,7 +357,7 @@
     "deleteFailed": "ลบโปรเจกต์ไม่สำเร็จ",
     "projectNotFound": "ไม่พบโปรเจกต์",
     "pdf": {
-      "generatedBy": "สร้างโดย Ethical Monetization Designer",
+      "generatedBy": "สร้างโดย EMD — Ethical Monetization Designer",
       "page": "หน้า {{page}}",
       "exportDate": "วันที่ส่งออก: {{date}}",
       "risk": "ความเสี่ยง: {{level}} ({{score}}/10)",
@@ -464,6 +464,7 @@
     "more": "...เพิ่มเติม",
     "less": "ย่อ",
     "selected": "เลือกแล้ว: {{items}}",
+    "customGenrePlaceholder": "เพิ่มแนวเกมเอง...",
     "platform": "แพลตฟอร์ม",
     "customPlatformPlaceholder": "เพิ่มแพลตฟอร์มเอง...",
     "add": "เพิ่ม",
@@ -777,6 +778,7 @@
     "send": "ส่ง",
     "errorGeneric": "เกิดข้อผิดพลาดบางอย่าง",
     "projectRequired": "ต้องมีโปรเจกต์จริงก่อนถึงจะบันทึกคำแนะนำได้ กด Continue ที่หน้า Setup ก่อน",
-    "summarizeFailed": "สรุปไม่สำเร็จ"
+    "summarizeFailed": "สรุปไม่สำเร็จ",
+    "summarizeSuccess": "สรุปคำแนะนำจาก AI แล้ว ดูได้ที่ panel คำแนะนำ"
   }
 }

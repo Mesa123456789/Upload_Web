@@ -1,30 +1,25 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { listInstructorCourses } from '../../courses/services/courses.service'
-import {
-  listCourseProjects,
-  setProjectUnderReview,
-} from '../../projects/services/projects.service'
+import { listCourseProjects } from '../../projects/services/projects.service'
 import { getProfile } from '../../profile/services/profiles.service'
-import type { Course, Project, Profile } from '../../../lib/database.types'
+import type { Course, Profile, Project } from '../../../lib/database.types'
 import PageContainer from '../../../app/layout/PageContainer'
 import Card from '../../../shared/components/Card'
-import FadeInCard from '../../../shared/components/FadeInCard'
 import Badge from '../../../shared/components/Badge'
-import Spinner from '../../../shared/components/Spinner'
+import { ProjectDetailSkeleton } from '../../../shared/components/Skeleton'
+import { useI18n } from '../../../i18n/I18nProvider'
 
-// Project row enriched with the student's profile
-type ProjectWithStudent = Project & { studentProfile: Profile | null }
+type StudentProject = Project & { courseTitle: string }
 
-function stepLabel(step: number): string {
-  return ['', 'Setup', 'Build', 'Guardrail', 'Output'][step] ?? 'Unknown'
+function stepLabelKey(step: number): string {
+  return ['', 'steps.setup', 'steps.build', 'steps.guardrail', 'steps.output'][step] ?? 'common.unknown'
 }
 
 function stepVariant(step: number): 'blue' | 'yellow' | 'purple' | 'green' {
   return (['blue', 'blue', 'yellow', 'purple', 'green'] as const)[step] ?? 'blue'
 }
 
-// Map status to badge color — covers all 6 statuses
 function statusVariant(status: Project['status']): 'default' | 'blue' | 'green' | 'yellow' | 'purple' | 'red' {
   switch (status) {
     case 'submitted': return 'blue'
@@ -36,259 +31,177 @@ function statusVariant(status: Project['status']): 'default' | 'blue' | 'green' 
   }
 }
 
-export default function InstructorProjectsPage() {
+export default function InstructorStudentProfilePage() {
+  const { studentId } = useParams<{ studentId: string }>()
   const navigate = useNavigate()
+  const { t, formatDate, formatNumber } = useI18n()
 
-  // Read ?courseId=xxx from URL — CoursesPage "View Projects" button sets this
-  const [searchParams] = useSearchParams()
-  const courseIdFromUrl = searchParams.get('courseId')
-
+  const [student, setStudent] = useState<Profile | null>(null)
   const [courses, setCourses] = useState<Course[]>([])
-  const [projects, setProjects] = useState<ProjectWithStudent[]>([])
-  const [selectedCourseId, setSelectedCourseId] = useState<string>('')
+  const [projects, setProjects] = useState<StudentProject[]>([])
   const [loading, setLoading] = useState(true)
-  const [projectsLoading, setProjectsLoading] = useState(false)
-  const [bulkLoading, setBulkLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    async function loadCourses() {
-      try {
-        const data = await listInstructorCourses()
-        setCourses(data)
+    async function loadStudentData() {
+      if (!studentId) {
+        setError(t('instructorStudent.notFound'))
+        setLoading(false)
+        return
+      }
 
-        if (data.length > 0) {
-          // Prefer the courseId from URL if it matches a real course
-          const matchedId = courseIdFromUrl && data.some((c) => c.id === courseIdFromUrl)
-            ? courseIdFromUrl
-            : data[0].id
-          setSelectedCourseId(matchedId)
-        }
+      try {
+        const [profileData, instructorCourses] = await Promise.all([
+          getProfile(studentId),
+          listInstructorCourses(),
+        ])
+
+        setStudent(profileData)
+        setCourses(instructorCourses)
+
+        const projectGroups = await Promise.all(
+          instructorCourses.map(async (course) => {
+            const courseProjects = await listCourseProjects(course.id)
+            return courseProjects
+              .filter((project) => project.owner_id === studentId)
+              .map((project) => ({ ...project, courseTitle: course.title }))
+          }),
+        )
+
+        setProjects(projectGroups.flat().sort((a, b) => b.updated_at.localeCompare(a.updated_at)))
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load courses')
+        setError(err instanceof Error ? err.message : t('instructorStudent.loadFailed'))
       } finally {
         setLoading(false)
       }
     }
-    loadCourses()
-    // courseIdFromUrl intentionally omitted from deps — only used for initial selection
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
-  useEffect(() => {
-    if (!selectedCourseId) return
-
-    async function loadProjects() {
-      setProjectsLoading(true)
-      try {
-        const data = await listCourseProjects(selectedCourseId)
-
-        // Enrich each project with its owner's profile — parallel fetches
-        const enriched = await Promise.all(
-          data.map(async (project) => {
-            const studentProfile = await getProfile(project.owner_id).catch(() => null)
-            return { ...project, studentProfile }
-          })
-        )
-        setProjects(enriched)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load projects')
-      } finally {
-        setProjectsLoading(false)
-      }
-    }
-    loadProjects()
-  }, [selectedCourseId])
-
-  // Update a single project's status in local state
-  function updateProjectInState(projectId: string, updates: Partial<Project>) {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === projectId ? { ...p, ...updates } : p))
-    )
-  }
-
-  // Bulk action: set all submitted/resubmitted projects to under_review
-  async function handleSetAllUnderReview() {
-    const targets = projects.filter(
-      (p) => p.status === 'submitted' || p.status === 'resubmitted'
-    )
-    if (targets.length === 0) return
-    setBulkLoading(true)
-    try {
-      await Promise.all(
-        targets.map(async (p) => {
-          await setProjectUnderReview(p.id)
-          updateProjectInState(p.id, { status: 'under_review' })
-        })
-      )
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update some projects')
-    } finally {
-      setBulkLoading(false)
-    }
-  }
-
-  // Per-row quick action: set project to under_review
-  async function handleRowStatusChange(projectId: string, newStatus: string) {
-    try {
-      if (newStatus === 'under_review') {
-        await setProjectUnderReview(projectId)
-        updateProjectInState(projectId, { status: 'under_review' })
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update status')
-    }
-  }
+    void loadStudentData()
+  }, [studentId])
 
   if (loading) {
     return (
       <PageContainer>
-        <div className="flex items-center justify-center py-20">
-          <Spinner size="lg" />
-        </div>
+        <ProjectDetailSkeleton />
+      </PageContainer>
+    )
+  }
+
+  if (!student) {
+    return (
+      <PageContainer>
+        <Card>
+          <p className="text-sm text-red-600">{error ?? t('instructorStudent.notFound')}</p>
+        </Card>
       </PageContainer>
     )
   }
 
   return (
     <PageContainer>
-      {/* Page header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-            Instructor
-          </p>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Student Projects</h1>
-          <p className="text-sm text-gray-500 leading-6 mt-1">Browse all projects by course</p>
-        </div>
-
-        {/* Bulk action: lock all submitted/resubmitted for review */}
-        {projects.some((p) => p.status === 'submitted' || p.status === 'resubmitted') && (
-          <button
-            onClick={handleSetAllUnderReview}
-            disabled={bulkLoading}
-            className="rounded-full border-2 border-primary/30 px-5 py-2 text-sm font-bold text-primary hover:bg-primary/5 disabled:opacity-50 transition-colors"
-          >
-            {bulkLoading ? 'Updating...' : 'Set All Under Review'}
-          </button>
-        )}
+      <div>
+        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-primary">{t('common.student')}</p>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900">{student.display_name ?? student.email}</h1>
+        <p className="mt-1 text-sm leading-6 text-gray-500">{t('instructorStudent.subtitle')}</p>
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 text-sm">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Course filter dropdown */}
-      <div>
-        <label className="block text-xs font-bold uppercase tracking-[0.18em] text-primary mb-2">
-          Filter by Course
-        </label>
-        {courses.length === 0 ? (
-          <p className="text-sm text-gray-400">No courses found. Create a course first.</p>
-        ) : (
-          <select
-            value={selectedCourseId}
-            onChange={(e) => setSelectedCourseId(e.target.value)}
-            className="border border-black/10 rounded-xl px-4 py-2.5 text-sm bg-background-card focus:outline-none focus:ring-2 focus:ring-primary/30 w-full max-w-sm"
-          >
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <Card className="h-fit space-y-5">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#d9d8d6] text-2xl font-bold text-[#302226]">
+              {(student.display_name ?? student.email ?? '?').trim().charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-base font-bold text-gray-900">{student.display_name ?? t('instructorStudent.unknownStudent')}</p>
+              <p className="truncate text-sm text-gray-500">{student.email}</p>
+            </div>
+          </div>
 
-      {/* Projects table */}
-      {projectsLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Spinner size="md" />
-        </div>
-      ) : (
-        <FadeInCard index={0}>
-        <Card>
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between gap-4 border-t border-black/5 pt-4">
+              <span className="text-gray-400">{t('common.role')}</span>
+              <span className="font-semibold capitalize text-gray-900">{t(`roles.${student.role}`)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400">{t('instructorStudent.studentId')}</span>
+              <span className="max-w-[60%] truncate font-semibold text-gray-900">{student.student_code ?? '-'}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400">{t('instructorStudent.major')}</span>
+              <span className="max-w-[60%] truncate font-semibold text-gray-900">{student.major ?? '-'}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400">{t('instructorStudent.year')}</span>
+              <span className="font-semibold text-gray-900">{student.year ?? '-'}</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-bold text-gray-900">{t('instructorStudent.projects')}</h2>
+            <span className="text-sm text-gray-400">
+              {t('instructorStudent.projectCount', { projects: formatNumber(projects.length), courses: formatNumber(courses.length), count: projects.length })}
+            </span>
+          </div>
+
           {projects.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-8">
-              No projects in this course yet.
-            </p>
+            <p className="py-10 text-center text-sm text-gray-400">{t('instructorStudent.emptyProjects')}</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-black/5">
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">Student</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">Project Title</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">Step</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">Status</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">Last Updated</th>
-                  <th className="text-left text-xs font-bold text-gray-400 pb-3">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {projects.map((project) => (
-                  <tr key={project.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
-                    {/* Student info */}
-                    <td className="py-3">
-                      <div className="text-gray-800 font-medium text-sm">
-                        {project.studentProfile?.display_name ?? 'Unknown'}
-                      </div>
-                      {project.studentProfile?.student_code && (
-                        <div className="text-xs text-gray-400 font-mono">
-                          {project.studentProfile.student_code}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 font-medium text-gray-800">{project.title}</td>
-                    <td className="py-3">
-                      <Badge variant={stepVariant(project.current_step)}>
-                        {stepLabel(project.current_step)}
-                      </Badge>
-                    </td>
-                    <td className="py-3">
-                      <Badge variant={statusVariant(project.status)}>
-                        {project.status.replace('_', ' ')}
-                      </Badge>
-                    </td>
-                    <td className="py-3 text-gray-400 text-xs">
-                      {new Date(project.updated_at).toLocaleDateString()}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex gap-2 items-center flex-wrap">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[22%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[15%]" />
+                  <col className="w-[13%]" />
+                </colgroup>
+                <thead>
+                  <tr className="border-b border-black/5">
+                    <th className="pb-3 text-left text-xs font-bold text-gray-400">{t('projects.table.projectName')}</th>
+                    <th className="pb-3 text-left text-xs font-bold text-gray-400">{t('common.course')}</th>
+                    <th className="pb-3 text-left text-xs font-bold text-gray-400">{t('projects.table.currentStep')}</th>
+                    <th className="pb-3 text-left text-xs font-bold text-gray-400">{t('projects.table.status')}</th>
+                    <th className="pb-3 text-left text-xs font-bold text-gray-400">{t('projects.table.lastUpdated')}</th>
+                    <th className="pb-3 text-left text-xs font-bold text-gray-400">{t('common.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((project) => (
+                    <tr key={project.id} className="border-b border-black/5 last:border-0 hover:bg-black/[0.02]">
+                      <td className="truncate py-3 font-semibold text-gray-900">{project.title}</td>
+                      <td className="truncate py-3 text-gray-600">{project.courseTitle}</td>
+                      <td className="py-3">
+                        <Badge variant={stepVariant(project.current_step)}>{t(stepLabelKey(project.current_step))}</Badge>
+                      </td>
+                      <td className="py-3">
+                        <Badge variant={statusVariant(project.status)}>{t(`status.${project.status}`)}</Badge>
+                      </td>
+                      <td className="py-3 text-xs text-gray-400">{formatDate(project.updated_at)}</td>
+                      <td className="py-3">
                         <button
                           onClick={() => navigate(`/instructor/project/${project.id}`)}
-                          className="rounded-full border-2 border-primary/30 px-3 py-1 text-xs font-bold text-primary hover:bg-primary/5 transition-colors"
+                          className="rounded-full border-2 border-primary/30 px-3 py-1 text-xs font-bold text-primary transition-colors hover:bg-primary/5"
                         >
-                          View
+                          {t('common.view')}
                         </button>
-                        <button
-                          onClick={() => navigate(`/instructor/student/${project.owner_id}`)}
-                          className="rounded-full border-2 border-gray-200 px-3 py-1 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors"
-                        >
-                          Profile
-                        </button>
-                        {/* Quick action — Under Review only; full grading in ProjectDetail */}
-                        {(project.status === 'submitted' || project.status === 'resubmitted') && (
-                          <select
-                            value=""
-                            onChange={(e) => handleRowStatusChange(project.id, e.target.value)}
-                            className="border border-black/10 rounded-full px-3 py-1 text-xs bg-background-card focus:outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
-                          >
-                            <option value="" disabled>Action...</option>
-                            <option value="under_review">Under Review</option>
-                          </select>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </Card>
-        </FadeInCard>
-      )}
+      </div>
     </PageContainer>
   )
 }

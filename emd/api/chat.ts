@@ -1,9 +1,26 @@
 import { getProvider } from './lib/ai-provider.js'
 
-const SYSTEM_PROMPT = `คุณคือผู้ช่วยที่ปรึกษาด้านการออกแบบเกม (Game Design Advisor)
-สำหรับนักศึกษาที่กำลังเขียน Game Design Document (GDD) บนแพลตฟอร์ม EMD
+type ResponseLanguage = 'th' | 'en'
 
-## ความหมายของ GDD ในบริบทนี้
+function buildLanguageInstruction(language: ResponseLanguage, forSummarize = false): string {
+  const categoryNote = forSummarize
+    ? language === 'en'
+      ? ' The "category" field must still use the fixed English key defined below — never translate it.'
+      : ' ส่วน "category" ยังคงต้องเป็น key ภาษาอังกฤษคงที่ตามที่กำหนดไว้ด้านล่างเสมอ ห้ามแปล'
+    : ''
+
+  if (language === 'en') {
+    return `## Response Language
+You MUST respond in English only, regardless of what language the student writes in. Do not switch to Thai even if the message is in Thai.${categoryNote}`
+  }
+  return `## ภาษาที่ใช้ตอบ
+คุณต้องตอบเป็นภาษาไทยเท่านั้น ไม่ว่านักศึกษาจะพิมพ์มาเป็นภาษาอะไรก็ตาม ห้ามสลับไปตอบเป็นภาษาอังกฤษแม้ข้อความจะเป็นอังกฤษ${categoryNote}`
+}
+
+const SYSTEM_PROMPT_INTRO = `คุณคือผู้ช่วยที่ปรึกษาด้านการออกแบบเกม (Game Design Advisor)
+สำหรับนักศึกษาที่กำลังเขียน Game Design Document (GDD) บนแพลตฟอร์ม EMD`
+
+const SYSTEM_PROMPT_BODY = `## ความหมายของ GDD ในบริบทนี้
 GDD (Game Design Document) ในแพลตฟอร์มนี้คือเอกสารออกแบบเกมที่นักศึกษาสร้างขึ้น ประกอบด้วย:
 - ข้อมูลพื้นฐาน: ชื่อเกม, แนวเกม (genre), แพลตฟอร์ม, กลุ่มเป้าหมาย, core loop, ความยาว session
 - แผน Monetization: การออกแบบ Ads (ประเภท, ตำแหน่ง, frequency cap) และ IAP (ชื่อไอเทม, ราคา, ประโยชน์)
@@ -25,6 +42,9 @@ GDD (Game Design Document) ในแพลตฟอร์มนี้คือ�
   → ให้หยุดถามต่อทันที ตอบรับสั้นๆ แล้วปล่อยให้เขาไปทำต่อ ห้ามพยายามลากให้ตอบให้ครบทุกแง่มุม
 - คุณไม่มีหน้าที่ "เก็บ checklist ให้ครบ" นักศึกษาอาจมีคำตอบอยู่ในหัวแล้ว หรือตั้งใจไปคิดทีหลัง
 - อย่าบังคับให้นักศึกษาตอบครบทุกหัวข้อก่อนถึงจะไปต่อได้ — เขาเลือกเองว่าจะคุยเรื่องไหนแค่ไหน
+- ตอบเฉพาะสิ่งที่นักศึกษาถามในข้อความนั้น ๆ ห้ามยกหัวข้ออื่นที่เขายังไม่ถามขึ้นมาเสริมเองแม้จะเกี่ยวข้องกัน
+  (เช่นถ้าเขาถามแค่เรื่อง ads ห้ามพ่วงคำแนะนำเรื่อง IAP หรือ core loop มาด้วยถ้าเขาไม่ได้ถาม) ยกเว้นเขาถามกว้าง ๆ
+  แบบ "ดู GDD ทั้งหมดให้หน่อย" ถึงค่อยมองภาพรวม
 
 ## การถามคำถาม
 - ถามได้ แต่ถามทีละ 1 คำถามที่สำคัญที่สุดพอ ไม่ใช่ยิงหลายคำถามรวด
@@ -41,11 +61,19 @@ GDD (Game Design Document) ในแพลตฟอร์มนี้คือ�
 - ใช้ bullet เมื่อจำเป็น ไม่ต้องใช้ทุกครั้ง
 - ตอบให้จบใน 3-5 ประโยคหรือ 3-4 bullet ห้ามยาวเกินไป`
 
-const SUMMARIZE_PROMPT = `คุณคือผู้ช่วยสรุปคำแนะนำด้านการออกแบบเกม
-หน้าที่: อ่านบทสนทนาระหว่างนักศึกษากับที่ปรึกษา แล้วสกัดเฉพาะ "คำแนะนำที่ปฏิบัติได้จริง" ออกมา
-พร้อมระบุว่าคำแนะนำแต่ละข้อเกี่ยวกับหัวข้อใดของ GDD
+function buildSystemPrompt(language: ResponseLanguage): string {
+  return `${SYSTEM_PROMPT_INTRO}
 
-หมวด (category) ที่เลือกได้ มีดังนี้เท่านั้น:
+${buildLanguageInstruction(language)}
+
+${SYSTEM_PROMPT_BODY}`
+}
+
+const SUMMARIZE_PROMPT_INTRO = `คุณคือผู้ช่วยสรุปคำแนะนำด้านการออกแบบเกม
+หน้าที่: อ่านบทสนทนาระหว่างนักศึกษากับที่ปรึกษา แล้วสกัดเฉพาะ "คำแนะนำที่ปฏิบัติได้จริง" ออกมา
+พร้อมระบุว่าคำแนะนำแต่ละข้อเกี่ยวกับหัวข้อใดของ GDD`
+
+const SUMMARIZE_PROMPT_BODY = `หมวด (category) ที่เลือกได้ มีดังนี้เท่านั้น (เป็น key ภาษาอังกฤษคงที่ ห้ามแปล ไม่ว่าจะตอบภาษาอะไร):
 - "title" = ชื่อเกม
 - "genre" = แนวเกม
 - "platform" = แพลตฟอร์ม
@@ -61,7 +89,7 @@ const SUMMARIZE_PROMPT = `คุณคือผู้ช่วยสรุปค
 
 กติกาทั่วไป:
 - ตอบเป็น JSON array เท่านั้น ห้ามมีข้อความอื่นนอก array ห้ามมี markdown code fence
-- แต่ละ element มีรูปแบบ: {"category": "<หมวด>", "advice": "<คำแนะนำกระชับ 1 ประโยค ภาษาทางการ ภาษาไทย>"}
+- แต่ละ element มีรูปแบบ: {"category": "<หมวด>", "advice": "<คำแนะนำกระชับ 1 ประโยค ภาษาทางการ ตอบตามภาษาที่กำหนดด้านบน>"}
 - เลือก category ที่ตรงที่สุดกับคำแนะนำข้อนั้น
 - เอาเฉพาะคำแนะนำที่ปฏิบัติได้จริง ไม่เกิน 5 ข้อ
 - ห้ามแต่งเติมคำแนะนำที่ไม่มีในบทสนทนา
@@ -69,6 +97,14 @@ const SUMMARIZE_PROMPT = `คุณคือผู้ช่วยสรุปค
 
 ตัวอย่างผลลัพธ์:
 [{"category":"revenue_mix","advice":"Ads ควรมากกว่า IAP เพราะเกมแนว casual ที่ session สั้น ผู้เล่นมักไม่อยากจ่ายเงินก้อนใหญ่"},{"category":"core_mechanic","advice":"ควรอธิบาย core loop เป็นลำดับขั้นให้ชัดเจน"}]`
+
+function buildSummarizePrompt(language: ResponseLanguage): string {
+  return `${SUMMARIZE_PROMPT_INTRO}
+
+${buildLanguageInstruction(language, true)}
+
+${SUMMARIZE_PROMPT_BODY}`
+}
 
 const STEP_NAMES: Record<number, string> = {
   1: 'Setup (กำหนดข้อมูลเกมพื้นฐาน)',
@@ -161,11 +197,12 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { project, history = [], message, mode, provider: providerOverride } = req.body
+    const { project, history = [], message, mode, provider: providerOverride, language } = req.body
     if (!message) {
       return res.status(400).json({ error: 'message is required' })
     }
 
+    const responseLanguage: ResponseLanguage = language === 'en' ? 'en' : 'th'
     const provider = await getProvider(providerOverride)
     const trimmedHistory = history.slice(-8)
 
@@ -175,9 +212,10 @@ export default async function handler(req: any, res: any) {
         ...trimmedHistory,
         { role: 'user', parts: [{ text: message }] },
       ]
+      const summarizePrompt = buildSummarizePrompt(responseLanguage)
       let result = await provider.generate({
         contents: summarizeContents,
-        systemInstruction: SUMMARIZE_PROMPT,
+        systemInstruction: summarizePrompt,
         temperature: 0.3,
         maxOutputTokens: 1000,
       })
@@ -189,7 +227,7 @@ export default async function handler(req: any, res: any) {
         console.warn(`[chat] summarize parse ล้มเหลวจาก ${result.providerName} — retry 1 ครั้ง. raw: ${result.text.slice(0, 200)}`)
         result = await provider.generate({
           contents: summarizeContents,
-          systemInstruction: SUMMARIZE_PROMPT + '\n\nย้ำ: ตอบเป็น JSON array เท่านั้น ห้ามมีคำอธิบายอื่นปนมา',
+          systemInstruction: summarizePrompt + '\n\nย้ำ: ตอบเป็น JSON array เท่านั้น ห้ามมีคำอธิบายอื่นปนมา',
           temperature: 0.2,
           maxOutputTokens: 1000,
         })
@@ -213,7 +251,7 @@ export default async function handler(req: any, res: any) {
 
     const generateParams = {
       contents,
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: buildSystemPrompt(responseLanguage),
       temperature: 0.7,
       maxOutputTokens: 1500,
     }

@@ -5,6 +5,7 @@ import AuthCallbackPage from '../features/auth/pages/AuthCallbackPage'
 import ProtectedRoute from './ProtectedRoute'
 import RoleRoute from './RoleRoute'
 import StudentDashboardPage from '../features/student/pages/StudentDashboardPage'
+import StudentProjectsPage from '../features/student/pages/StudentProjectsPage'
 import JoinCoursePage from '../features/student/pages/JoinCoursePage'
 import CourseDetailPage from '../features/student/pages/CourseDetailPage'
 import SetupPage from '../features/projects/pages/SetupPage'
@@ -15,9 +16,10 @@ import ProfilePage from '../features/profile/pages/ProfilePage'
 import InstructorDashboardPage from '../features/instructor/pages/InstructorDashboardPage'
 import InstructorCoursesPage from '../features/instructor/pages/InstructorCoursesPage'
 import InstructorProjectsPage from '../features/instructor/pages/InstructorProjectsPage'
+import InstructorStudentsPage from '../features/instructor/pages/InstructorStudentsPage'
 import InstructorProjectDetailPage from '../features/instructor/pages/InstructorProjectDetailPage'
 import InstructorStudentProfilePage from '../features/instructor/pages/InstructorStudentProfilePage'
-import Spinner from '../shared/components/Spinner'
+import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
 import ProjectLayout from '../features/projects/pages/ProjectLayout'
 
 // RoleRedirect — routes user to their role-specific home page.
@@ -29,11 +31,7 @@ function RoleRedirect() {
   // Show spinner while profile is still being fetched.
   // Returning null here would leave a blank screen — spinner is friendlier.
   if (loading || !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <RouteLoadingSkeleton />
   }
 
   if (profile.role === 'instructor') {
@@ -69,6 +67,10 @@ export const router = createBrowserRouter([
       {
         path: '/dashboard',
         element: <StudentDashboardPage />,
+      },
+      {
+        path: '/projects',
+        element: <StudentProjectsPage />,
       },
       {
         path: '/join',
@@ -127,6 +129,10 @@ export const router = createBrowserRouter([
           {
             path: '/instructor/projects',
             element: <InstructorProjectsPage />,
+          },
+          {
+            path: '/instructor/students',
+            element: <InstructorStudentsPage />,
           },
           {
             // Read-only detail view of a single student project

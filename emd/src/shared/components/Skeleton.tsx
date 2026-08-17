@@ -1,11 +1,14 @@
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-200 ${className}`} />
+  return (
+    <div
+      className={`motion-shimmer rounded-[16px] bg-[linear-gradient(110deg,rgba(226,232,240,0.78),rgba(248,250,252,0.9),rgba(226,232,240,0.78))] ${className}`}
+    />
+  )
 }
- 
-// โครงการ์ดมาตรฐาน — แทน <Card> ที่กำลังโหลดข้อมูล (หัวเรื่อง + เนื้อหา 2-3 บรรทัด)
+
 export function SkeletonCard() {
   return (
-    <div className="rounded-lg border border-line bg-white p-5">
+    <div className="ds-card-soft p-5">
       <Skeleton className="h-5 w-1/3" />
       <div className="mt-4 space-y-2">
         <Skeleton className="h-4 w-full" />
@@ -15,8 +18,7 @@ export function SkeletonCard() {
     </div>
   )
 }
- 
-// โครงแถวตาราง — ใช้กับ list/table ที่กำลังโหลด (เช่น dashboard list โปรเจกต์)
+
 export function SkeletonRow() {
   return (
     <div className="flex items-center gap-4 border-b border-line py-3">
@@ -25,17 +27,62 @@ export function SkeletonRow() {
         <Skeleton className="h-4 w-1/4" />
         <Skeleton className="h-3 w-1/3" />
       </div>
-      <Skeleton className="h-8 w-20 rounded-md" />
+      <Skeleton className="h-8 w-20 rounded-full" />
     </div>
   )
 }
- 
-// กลุ่ม stat card (เช่น Active Projects / Output Ready ใน dashboard)
+
 export function SkeletonStatCard() {
   return (
-    <div className="rounded-lg border border-line bg-white p-5">
+    <div className="ds-card-soft p-5">
       <Skeleton className="h-4 w-2/3" />
       <Skeleton className="mt-3 h-8 w-12" />
     </div>
   )
+}
+
+export function RouteLoadingSkeleton() {
+  return (
+    <div className="min-h-screen bg-[var(--ds-bg)] p-6">
+      <div className="mx-auto max-w-6xl space-y-6 pt-16">
+        <Skeleton className="h-9 w-48" />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Skeleton className="h-28 rounded-[24px]" />
+          <Skeleton className="h-28 rounded-[24px]" />
+          <Skeleton className="h-28 rounded-[24px]" />
+          <Skeleton className="h-28 rounded-[24px]" />
+        </div>
+        <Skeleton className="h-64 rounded-[28px]" />
+      </div>
+    </div>
+  )
+}
+
+export function ProjectDetailSkeleton() {
+  return (
+    <PageSkeleton>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-80 max-w-full" />
+        </div>
+        <Skeleton className="h-10 w-36 rounded-full" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="space-y-5">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+        <div className="space-y-5">
+          <Skeleton className="h-48 rounded-[24px]" />
+          <Skeleton className="h-48 rounded-[24px]" />
+        </div>
+      </div>
+    </PageSkeleton>
+  )
+}
+
+function PageSkeleton({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-8">{children}</div>
 }

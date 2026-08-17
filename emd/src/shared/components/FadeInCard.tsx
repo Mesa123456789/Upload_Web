@@ -1,5 +1,6 @@
-import { motion } from 'framer-motion'
+import { motion, useReducedMotion } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { cardVariants, transitions } from '../motion'
  
 export default function FadeInCard({
   children,
@@ -8,11 +9,14 @@ export default function FadeInCard({
   children: ReactNode
   index?: number
 }) {
+  const reduceMotion = useReducedMotion()
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, delay: index * 0.06, ease: 'easeOut' }}
+      initial={reduceMotion ? false : 'initial'}
+      animate={reduceMotion ? undefined : 'animate'}
+      variants={cardVariants}
+      transition={reduceMotion ? undefined : { ...transitions.page, delay: index * 0.045 }}
     >
       {children}
     </motion.div>

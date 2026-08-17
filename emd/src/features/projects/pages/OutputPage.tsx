@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
-import jsPDF from 'jspdf'
-import { registerThaiFont } from '../../../lib/pdf-thai-font'
-import { preloadThaiFonts, drawThaiText, drawThaiTextLines, wrapThaiText } from '../../../lib/thai-text-renderer'
 import { loadSuggestions } from '../services/chat.service'
+import type { RawSuggestion } from '../services/chat.service'
 import {
   getProject,
   updateProject,
@@ -21,9 +20,11 @@ import Card from '../../../shared/components/Card'
 import Badge from '../../../shared/components/Badge'
 import { Skeleton, SkeletonCard } from '../../../shared/components/Skeleton'
 import { notify } from '../../../shared/lib/toast'
+import { useI18n } from '../../../i18n/I18nProvider'
 import StepIndicator from './components/StepIndicator'
 import AiSuggestionPanel from './components/AiSuggestionPanel'
 import FadeInCard from '../../../shared/components/FadeInCard'
+import OutputPrintSheet from './components/OutputPrintSheet'
 
 type PdfExportMode = 'data' | 'ai'
 
@@ -66,6 +67,7 @@ function TrashIcon({ className = 'h-4 w-4' }: IconProps) {
 export default function OutputPage() {
   const { id: projectId } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { t, formatNumber } = useI18n()
 
   const [project, setProject] = useState<Project | null>(null)
   const [adsConfig, setAdsConfig] = useState<AdsConfig | null>(null)
@@ -76,6 +78,8 @@ export default function OutputPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [printMode, setPrintMode] = useState<PdfExportMode | null>(null)
+  const [printAiSuggestions, setPrintAiSuggestions] = useState<RawSuggestion[]>([])
 
   useEffect(() => {
     async function load() {
@@ -100,7 +104,7 @@ export default function OutputPage() {
           await updateProject(projectId, { current_step: 4 })
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load output')
+        setError(err instanceof Error ? err.message : t('output.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -108,15 +112,44 @@ export default function OutputPage() {
     load()
   }, [projectId])
 
+  useEffect(() => {
+    if (!printMode || !project) return
+
+    const originalTitle = document.title
+    const safeFileName = project.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'project'
+    document.title = `emd-${safeFileName}${printMode === 'ai' ? '-ai-recommendations' : ''}`
+
+    function handleAfterPrint() {
+      document.title = originalTitle
+      setPrintMode(null)
+    }
+    window.addEventListener('afterprint', handleAfterPrint)
+
+    let frame1 = 0
+    let frame2 = 0
+    frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
+        window.print()
+      })
+    })
+
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint)
+      document.title = originalTitle
+      cancelAnimationFrame(frame1)
+      cancelAnimationFrame(frame2)
+    }
+  }, [printMode])
+
   async function handleSubmit() {
     if (!projectId || !project) return
     setSubmitting(true)
     setError(null)
     try {
       setProject(await submitProject(projectId))
-      notify.success('ส่งงานเรียบร้อย! รออาจารย์ตรวจนะ 🎉')
+      notify.success(t('output.submitSuccess'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit')
+      setError(err instanceof Error ? err.message : t('output.submitFailed'))
     } finally {
       setSubmitting(false)
     }
@@ -130,61 +163,91 @@ export default function OutputPage() {
       await resubmitProject(projectId)
       navigate(`/project/${projectId}/setup`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to re-submit')
+      setError(err instanceof Error ? err.message : t('output.resubmitFailed'))
       setSubmitting(false)
     }
   }
 
   async function handleDelete() {
     if (!projectId || !project) return
-    if (!window.confirm(`Delete "${project.title}"? This cannot be undone.`)) return
+    if (!window.confirm(t('output.confirmDelete', { title: project.title }))) return
     setDeleting(true)
     try {
       await deleteProject(projectId)
       navigate('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete project')
+      setError(err instanceof Error ? err.message : t('output.deleteFailed'))
       setDeleting(false)
-      notify.error('ลบโปรเจกต์ไม่สำเร็จ ลองใหม่')
+      notify.error(t('output.deleteFailed'))
     }
   }
 
   function handleExportCSV() {
     if (!project) return
     const rows: string[][] = [
-      ['Field', 'Value'],
-      ['Game Title', project.title],
-      ['Genre', (project.genre ?? []).join(', ')],
-      ['Platform', (project.platform ?? []).join(', ')],
-      ['Target Audience', project.target_audience ?? ''],
-      ['Core Mechanic', project.core_mechanic ?? ''],
-      ['Session Length', project.session_length ?? ''],
-      ['Ad Network', adsConfig?.ad_network ?? ''],
-      ['Revenue Model', adsConfig?.revenue_model ?? ''],
+      [t('output.pdf.projectContext')],
+      [t('output.pdf.field'), t('output.pdf.value')],
+      [t('output.pdf.gameTitle'), project.title],
+      [t('output.pdf.genre'), (project.genre ?? []).join(', ')],
+      [t('output.pdf.platform'), (project.platform ?? []).join(', ')],
+      [t('output.pdf.targetAudience'), project.target_audience ?? ''],
+      [t('output.pdf.coreLoop'), project.core_mechanic ?? ''],
+      [t('output.pdf.session'), project.session_length ?? ''],
       [],
-      ['Ad Placements'],
-      ['Type', 'Trigger Point', 'Frequency Cap'],
+      [t('output.pdf.adsStrategy')],
+      [t('output.pdf.type'), t('output.pdf.triggerMoment'), t('output.pdf.frequencyCap'), t('output.pdf.notes')],
       ...adPlacements.map((placement) => [
         placement.placement_type,
         placement.trigger_point ?? '',
-        placement.frequency_cap?.toString() ?? '',
+        placement.frequency_cap == null ? t('output.pdf.missing') : t('output.pdf.perSession', { count: String(placement.frequency_cap) }),
+        placement.notes ?? '',
       ]),
       [],
-      ['IAP Items'],
-      ['Name', 'Type', 'Price USD', 'Description'],
+      [t('output.pdf.iapCatalog')],
+      [t('output.pdf.item'), t('output.pdf.type'), t('output.pdf.price'), t('output.pdf.benefitDescription')],
       ...iapItems.map((item) => [
         item.name,
-        item.item_type,
-        item.price_usd?.toString() ?? '',
+        item.item_type.replace('_', ' '),
+        item.price_usd != null ? `$${item.price_usd.toFixed(2)}` : '',
         item.description ?? '',
       ]),
+      [],
+      [t('output.pdf.configurationNotes')],
+      [t('output.pdf.area'), t('output.pdf.field'), t('output.pdf.value')],
+      [t('build.ads'), t('output.pdf.adNetwork'), adsConfig?.ad_network ?? ''],
+      [t('build.ads'), t('output.pdf.revenueModel'), adsConfig?.revenue_model ?? ''],
+      [t('build.ads'), t('output.pdf.notes'), adsConfig?.notes ?? ''],
+      [t('build.iap'), t('output.pdf.storeField'), iapConfig?.store?.replace('_', ' ') ?? ''],
+      [t('build.iap'), t('output.pdf.currency'), iapConfig?.currency ?? ''],
+      [t('build.iap'), t('output.pdf.notes'), iapConfig?.notes ?? ''],
+      [],
+      [t('output.pdf.caseForEthics')],
+      [t('output.pdf.check'), t('output.pdf.result'), t('output.pdf.explanation')],
+      [
+        t('output.pdf.frequencyCap'),
+        missingCaps === 0 ? t('output.pdf.pass') : t('output.pdf.capsNeed', { count: String(missingCaps) }),
+        t('output.pdf.capsExplanation'),
+      ],
+      [t('output.pdf.optionalValue'), t('output.pdf.pass'), t('output.pdf.optionalValueExplanation')],
+      [
+        t('output.pdf.priceClarity'),
+        iapItems.every((item) => item.price_usd != null && item.description) ? t('output.pdf.pass') : t('output.pdf.needsReview'),
+        t('output.pdf.priceClarityExplanation'),
+      ],
+      [t('output.pdf.pressureLevel'), riskLabel, t('output.pdf.pressureExplanation')],
+      [],
+      [t('output.feedback.title')],
+      [t('output.pdf.field'), t('output.pdf.value')],
+      [t('projects.table.status'), t(`status.${project.status}`)],
+      [t('output.pdf.grade'), project.grade == null ? t('output.pdf.notGraded') : `${project.grade}/100`],
+      [t('output.pdf.comment'), project.instructor_comment || t('output.pdf.noInstructorComment')],
     ]
 
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
-    // เติม UTF-8 BOM (\uFEFF) นำหน้า — Excel ไม่อ่าน charset จาก Blob MIME type
-    // เลย ถ้าไม่มี BOM มันเดา encoding เป็น ANSI/Windows-1252 แทน UTF-8 โดย
-    // default ทำให้ตัวอักษรไทยกลายเป็นสัญลักษณ์มั่ว ๆ ตอนเปิดในโปรแกรมที่ไม่ใช่
-    // text editor (Notepad/เครื่อง Linux อ่านได้ปกติเพราะมันเดา UTF-8 เป็นทุนเดิม)
+    // à¹€à¸•à¸´à¸¡ UTF-8 BOM (\uFEFF) à¸™à¸³à¸«à¸™à¹‰à¸² â€” Excel à¹„à¸¡à¹ˆà¸­à¹ˆà¸²à¸™ charset à¸ˆà¸²à¸ Blob MIME type
+    // à¹€à¸¥à¸¢ à¸–à¹‰à¸²à¹„à¸¡à¹ˆà¸¡à¸µ BOM à¸¡à¸±à¸™à¹€à¸”à¸² encoding à¹€à¸›à¹‡à¸™ ANSI/Windows-1252 à¹à¸—à¸™ UTF-8 à¹‚à¸”à¸¢
+    // default à¸—à¸³à¹ƒà¸«à¹‰à¸•à¸±à¸§à¸­à¸±à¸à¸©à¸£à¹„à¸—à¸¢à¸à¸¥à¸²à¸¢à¹€à¸›à¹‡à¸™à¸ªà¸±à¸à¸¥à¸±à¸à¸©à¸“à¹Œà¸¡à¸±à¹ˆà¸§ à¹† à¸•à¸­à¸™à¹€à¸›à¸´à¸”à¹ƒà¸™à¹‚à¸›à¸£à¹à¸à¸£à¸¡à¸—à¸µà¹ˆà¹„à¸¡à¹ˆà¹ƒà¸Šà¹ˆ
+    // text editor (Notepad/à¹€à¸„à¸£à¸·à¹ˆà¸­à¸‡ Linux à¸­à¹ˆà¸²à¸™à¹„à¸”à¹‰à¸›à¸à¸•à¸´à¹€à¸žà¸£à¸²à¸°à¸¡à¸±à¸™à¹€à¸”à¸² UTF-8 à¹€à¸›à¹‡à¸™à¸—à¸¸à¸™à¹€à¸”à¸´à¸¡)
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -196,378 +259,10 @@ export default function OutputPage() {
 
   async function handleExportPDF(mode: PdfExportMode) {
     if (!project) return
-    // โหลดฟอนต์ Sarabun เข้า browser ก่อน (สำหรับ canvas rendering) — ต้องรอ
-    // ให้เสร็จก่อนเริ่มวาดอะไรเลย ไม่งั้น canvas จะ fallback ไปฟอนต์ default
-    await preloadThaiFonts()
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
-    registerThaiFont(doc)
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 14
-    const contentWidth = pageWidth - margin * 2 // 182mm
-    const orange: [number, number, number] = [245, 130, 32]
-    const ink: [number, number, number] = [35, 31, 27]
-    const muted: [number, number, number] = [76, 93, 116]
-    const lineColor: [number, number, number] = [225, 213, 201]
-    const warm: [number, number, number] = [247, 241, 234]
-    const panel: [number, number, number] = [252, 249, 245]
-    let y = 16
-
-    const value = (text: string | number | null | undefined, fallback = 'Not set') => {
-      if (text === null || text === undefined || text === '') return fallback
-      return String(text)
-    }
-    const list = (items: string[] | null | undefined) => items?.join(', ') || 'Not set'
-    const money = (amount: number | null) => amount == null ? 'Free / not specified' : `$${amount.toFixed(2)}`
-    const safeFileName = project.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'project'
-    const exportDate = new Date().toISOString().slice(0, 10)
-    const totalItems = adPlacements.length + iapItems.length
-    const pdfAdPercent = totalItems ? Math.round((adPlacements.length / totalItems) * 100) : 0
-    const pdfIapPercent = totalItems ? 100 - pdfAdPercent : 0
-    const missingCaps = adPlacements.filter((placement) => placement.frequency_cap == null).length
-    const interstitials = adPlacements.filter((placement) => placement.placement_type === 'interstitial').length
-    const riskScore = Math.min(10, missingCaps * 3 + interstitials * 2 + Math.max(0, iapItems.length - 3))
-    const riskLabel = riskScore >= 7 ? 'High' : riskScore >= 4 ? 'Medium' : 'Low'
-    const vagueItems = iapItems.filter((item) => !item.description).length
-    const unpricedItems = iapItems.filter((item) => item.price_usd == null).length
-
-    // ดึงคำแนะนำ AI จริงจาก Supabase (ai_suggestions) — เฉพาะตอน export AI PDF
-    const rawSuggestions = mode === 'ai' ? await loadSuggestions(project.id) : []
-    const categoryLabels: Record<string, string> = {
-      title: 'ชื่อเกม',
-      genre: 'แนวเกม',
-      platform: 'แพลตฟอร์ม',
-      target_audience: 'กลุ่มเป้าหมาย',
-      core_mechanic: 'Core Loop',
-      session_length: 'ความยาว Session',
-      revenue_mix: 'สัดส่วนรายได้',
-      monetization_design: 'การออกแบบ Monetization',
-    }
-    const aiSuggestions: string[][] = rawSuggestions.map((s) => [
-      categoryLabels[s.category] ?? s.category,
-      s.advice,
-    ])
-
-    // ความสูงบรรทัดจริง (mm) ตาม fontSize ปัจจุบัน — ต้องหารด้วย scaleFactor
-    // เพราะ doc.getLineHeight() คืนค่าในหน่วยภายในของ jsPDF (pt-equivalent)
-    function lineHeightMm(): number {
-      return doc.getLineHeight() / doc.internal.scaleFactor
-    }
-
-    function addPageIfNeeded(height = 24) {
-      if (y + height <= pageHeight - 14) return
-      doc.addPage()
-      y = 16
-      footer()
-    }
-
-    function footer() {
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10)
-      drawThaiText(doc, 'Generated by Ethical Monetization Designer', margin, pageHeight - 5, {
-        fontSize: 8,
-        color: muted,
-      })
-      drawThaiText(doc, `Page ${doc.getNumberOfPages()}`, pageWidth - margin, pageHeight - 5, {
-        fontSize: 8,
-        color: muted,
-        align: 'right',
-      })
-    }
-
-    function title(text: string, size = 13) {
-      addPageIfNeeded(14)
-      drawThaiText(doc, text, margin, y, { fontSize: size, bold: true, color: ink })
-      y += 4
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.line(margin, y, pageWidth - margin, y)
-      y += 6
-    }
-
-    function paragraph(text: string, x: number, width: number, size = 9, color: [number, number, number] = muted) {
-      const lines = wrapThaiText(text, width, size, false)
-      const lh = lineHeightMm()
-      drawThaiTextLines(doc, lines, x, y, lh, { fontSize: size, color })
-      y += lines.length * lh
-    }
-
-    function card(x: number, top: number, width: number, height: number) {
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.setFillColor(panel[0], panel[1], panel[2])
-      doc.roundedRect(x, top, width, height, 3, 3, 'FD')
-    }
-
-    function keyValue(label: string, detail: string, x: number, top: number, width: number) {
-      drawThaiText(doc, label.toUpperCase(), x, top, { fontSize: 8, bold: true, color: muted })
-      const lines = wrapThaiText(detail, width, 9, false)
-      const lh = lineHeightMm()
-      drawThaiTextLines(doc, lines, x, top + 5, lh, { fontSize: 9, bold: true, color: ink })
-    }
-
-    function table(headers: string[], rows: string[][], widths: number[]) {
-      const startX = margin
-      const headerHeight = 9
-      addPageIfNeeded(headerHeight + 10)
-      doc.setFillColor(warm[0], warm[1], warm[2])
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.rect(startX, y, contentWidth, headerHeight, 'FD')
-
-      let x = startX
-      headers.forEach((header, index) => {
-        drawThaiText(doc, header, x + 3, y + 5.8, { fontSize: 8.5, bold: true, color: ink })
-        x += widths[index]
-      })
-      y += headerHeight
-
-      if (rows.length === 0) {
-        rows = [['No data added yet.', '', '', ''].slice(0, headers.length)]
-      }
-
-      rows.forEach((row, rowIndex) => {
-        const wrapped = row.map((cell, index) => wrapThaiText(value(cell, '-'), widths[index] - 6, 8.5, false))
-        const lh = lineHeightMm()
-        const rowHeight = Math.max(9, ...wrapped.map((lines) => lines.length * lh + 4.5))
-        addPageIfNeeded(rowHeight + 4)
-
-        if (rowIndex % 2 === 0) {
-          doc.setFillColor(255, 255, 255)
-        } else {
-          doc.setFillColor(252, 250, 247)
-        }
-
-        doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-        doc.rect(startX, y, contentWidth, rowHeight, 'FD')
-
-        let cellX = startX
-        wrapped.forEach((lines, index) => {
-          drawThaiTextLines(doc, lines, cellX + 3, y + 5.5, lh, { fontSize: 8.5, color: muted })
-          cellX += widths[index]
-        })
-        y += rowHeight
-      })
-      y += 5
-    }
-
     if (mode === 'ai') {
-      doc.setFillColor(warm[0], warm[1], warm[2])
-      doc.rect(0, 0, pageWidth, 42, 'F')
-      doc.setFillColor(orange[0], orange[1], orange[2])
-      doc.roundedRect(margin, 12, 16, 16, 3, 3, 'F')
-      drawThaiText(doc, 'AI', margin + 8, 20.5, { fontSize: 12, bold: true, color: [255, 255, 255], align: 'center', baseline: 'middle' })
-      drawThaiText(doc, project.title, margin + 22, 18, { fontSize: 19, bold: true, color: ink })
-      drawThaiText(doc, 'Ethical Monetization Designer - AI Recommended PDF', margin + 22, 24, { fontSize: 9, color: muted })
-      drawThaiText(doc, `Export date: ${exportDate}`, pageWidth - margin, 18, { fontSize: 9, color: muted, align: 'right' })
-      drawThaiText(doc, `Risk: ${riskLabel} (${riskScore}/10)`, pageWidth - margin, 24, { fontSize: 9, color: muted, align: 'right' })
-      y = 50
-
-      const aiSummaryText = riskScore >= 7
-        ? 'The plan can become stronger by reducing pressure before final review. Prioritize caps, clear purchase value, and fewer interruption points.'
-        : 'The plan is close to review-ready. Use the pitch to show how the design protects player choice while still supporting revenue.'
-
-      const aiSummaryLines = wrapThaiText(aiSummaryText, contentWidth - 10, 9, false)
-      const aiCardHeight = 16 + aiSummaryLines.length * lineHeightMm()
-
-      card(margin, y, contentWidth, aiCardHeight)
-      drawThaiText(doc, 'AI Recommendation Summary', margin + 5, y + 9, { fontSize: 14, bold: true, color: ink })
-      const oldY = y
-      y += 15
-      paragraph(aiSummaryText, margin + 5, contentWidth - 10, 9)
-      y = oldY + aiCardHeight + 8
-
-      title('Recommended Fixes')
-      table(
-        ['Category', 'AI Recommendation'],
-        aiSuggestions.length > 0 ? aiSuggestions : [['ยังไม่มีคำแนะนำ', 'คุยกับผู้ช่วย AI แล้วกดสรุปคำแนะนำก่อน export PDF']],
-        [40, 142],
-      )
-
-      title('Suggested Pitch')
-      paragraph(
-        `${project.title} uses monetization as optional value rather than forced progress. Ads should appear at controlled moments with visible caps, while IAP items should clearly state price and player benefit. The strongest argument for this plan is that players can decline offers and still enjoy the normal game loop.`,
-        margin,
-        contentWidth,
-        10
-      )
-      y += 5
-
-      title('Data Snapshot Used by AI')
-      table(
-        ['Metric', 'Current value'],
-        [
-          ['Game title', project.title],
-          ['Genre', list(project.genre)],
-          ['Platform', list(project.platform)],
-          ['Target audience', value(project.target_audience)],
-          ['Ad placements', `${adPlacements.length}`],
-          ['IAP items', `${iapItems.length}`],
-          ['Missing ad caps', `${missingCaps}`],
-          ['Interstitial placements', `${interstitials}`],
-          ['Unclear IAP benefit', `${vagueItems}`],
-          ['Missing IAP price', `${unpricedItems}`],
-        ],
-        [62, 120]
-      )
-
-      title('Final Checklist')
-      table(
-        ['Check', 'Recommended standard'],
-        [
-          ['Frequency cap', 'Every ad placement has a cap per session or per day.'],
-          ['Optionality', 'Players can decline ads and purchases without losing normal progress.'],
-          ['Price clarity', 'Every paid item has a visible price and a concrete benefit.'],
-          ['Pitch evidence', 'The final pitch names caps, optionality, and clear value as ethics evidence.'],
-        ],
-        [52, 130]
-      )
-
-      footer()
-      doc.save(`emd-${safeFileName}-ai-recommendations.pdf`)
-      return
+      setPrintAiSuggestions(await loadSuggestions(project.id))
     }
-
-    // ================= DATA MODE ================= //
-    doc.setFillColor(warm[0], warm[1], warm[2])
-    doc.rect(0, 0, pageWidth, 42, 'F')
-    doc.setFillColor(orange[0], orange[1], orange[2])
-    doc.roundedRect(margin, 12, 16, 16, 3, 3, 'F')
-    drawThaiText(doc, 'EMD', margin + 8, 20.5, { fontSize: 10, bold: true, color: [255, 255, 255], align: 'center', baseline: 'middle' })
-    drawThaiText(doc, project.title, margin + 22, 18, { fontSize: 19, bold: true, color: ink })
-    drawThaiText(doc, 'Ethical Monetization Designer - Your Data PDF', margin + 22, 24, { fontSize: 9, color: muted })
-    drawThaiText(doc, `Export date: ${exportDate}`, pageWidth - margin, 18, { fontSize: 9, color: muted, align: 'right' })
-    drawThaiText(doc, `Status: ${project.status.replace('_', ' ')}`, pageWidth - margin, 24, { fontSize: 9, color: muted, align: 'right' })
-    y = 50
-
-    const summaryText = `${project.title} is a ${list(project.platform)} ${list(project.genre)} game for ${value(project.target_audience, 'a defined audience')}. The monetization approach uses ${adPlacements.length} ad placement(s) and ${iapItems.length} in-app purchase item(s), with a focus on optional value, clear player benefit, and pressure control.`
-    const summaryLines = wrapThaiText(summaryText, 108, 9, false)
-    const lh = lineHeightMm()
-    const summaryCardHeight = Math.max(50, 18 + summaryLines.length * lh)
-
-    card(margin, y, 118, summaryCardHeight)
-    drawThaiText(doc, 'Summary', margin + 5, y + 9, { fontSize: 15, bold: true, color: ink })
-    const oldY = y
-    y += 15
-    paragraph(summaryText, margin + 5, 108, 9)
-
-    y = oldY
-    card(138, y, 58, summaryCardHeight)
-    drawThaiText(doc, 'Revenue Mix', 143, y + 9, { fontSize: 13, bold: true, color: ink })
-    drawThaiText(doc, `Ads ${pdfAdPercent}%`, 143, y + 22, { fontSize: 9, bold: true, color: ink })
-    drawThaiText(doc, `IAP ${pdfIapPercent}%`, 191, y + 22, { fontSize: 9, bold: true, color: ink, align: 'right' })
-    doc.setFillColor(236, 231, 224)
-    doc.roundedRect(143, y + 26, 48, 5, 2, 2, 'F')
-    doc.setFillColor(orange[0], orange[1], orange[2])
-    doc.roundedRect(143, y + 26, Math.max(2, 48 * pdfAdPercent / 100), 5, 2, 2, 'F')
-    drawThaiText(doc, `Risk score: ${riskLabel} (${riskScore}/10)`, 143, y + 38, { fontSize: 8.5, color: muted })
-    drawThaiText(doc, `Store: ${value(iapConfig?.store?.replace('_', ' '), 'Not configured')}`, 143, y + 43, { fontSize: 8.5, color: muted })
-
-    y = oldY + summaryCardHeight + 10
-    title('Project Context')
-
-    const contextColW = [40, 50, 52, 40]
-    const contextColX = [margin + 5, margin + 5 + 40, margin + 5 + 40 + 50, margin + 5 + 40 + 50 + 52]
-    const lc1 = wrapThaiText(list(project.genre), contextColW[0] - 6, 9, false).length
-    const lc2 = wrapThaiText(list(project.platform), contextColW[1] - 6, 9, false).length
-    const lc3 = wrapThaiText(value(project.target_audience), contextColW[2] - 6, 9, false).length
-    const lc4 = wrapThaiText(value(project.session_length), contextColW[3] - 6, 9, false).length
-    const contextCardHeight = Math.max(30, 16 + Math.max(lc1, lc2, lc3, lc4) * lh)
-
-    const contextTop = y
-    card(margin, contextTop, contentWidth, contextCardHeight)
-    keyValue('Genre', list(project.genre), contextColX[0], contextTop + 9, contextColW[0] - 6)
-    keyValue('Platform', list(project.platform), contextColX[1], contextTop + 9, contextColW[1] - 6)
-    keyValue('Audience', value(project.target_audience), contextColX[2], contextTop + 9, contextColW[2] - 6)
-    keyValue('Session', value(project.session_length), contextColX[3], contextTop + 9, contextColW[3] - 6)
-
-    y = contextTop + contextCardHeight + 8
-    title('Core Loop')
-    paragraph(value(project.core_mechanic, 'No core loop has been described yet.'), margin, contentWidth, 10)
-    y += 5
-
-    title('Monetization Flow')
-    const flowTop = y
-    const stages = ['Entry', 'Gameplay', 'Outcome', 'Meta']
-    stages.forEach((stage, index) => {
-      const cx = margin + 18 + (index * 48.6)
-      const cy = flowTop + 10
-
-      doc.setFillColor(255, 255, 255)
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.circle(cx, cy, 8, 'FD')
-
-      drawThaiText(doc, String(index + 1), cx, cy, { fontSize: 10, bold: true, color: orange, align: 'center', baseline: 'middle' })
-      drawThaiText(doc, stage, cx, cy + 16, { fontSize: 10, color: ink, align: 'center' })
-
-      if (index < stages.length - 1) {
-        const nextCx = margin + 18 + ((index + 1) * 48.6)
-        doc.setDrawColor(orange[0], orange[1], orange[2])
-        doc.line(cx + 12, cy, nextCx - 14, cy)
-        doc.line(nextCx - 17, cy - 2.5, nextCx - 14, cy)
-        doc.line(nextCx - 17, cy + 2.5, nextCx - 14, cy)
-      }
-    })
-    y = flowTop + 34
-
-    title('Ads Strategy')
-    table(
-      ['Type', 'Trigger / moment', 'Frequency cap', 'Notes'],
-      adPlacements.map((placement) => [
-        placement.placement_type,
-        value(placement.trigger_point, 'No trigger set'),
-        placement.frequency_cap == null ? 'Missing' : `${placement.frequency_cap} per session`,
-        value(placement.notes, 'No notes'),
-      ]),
-      [30, 62, 35, 55]
-    )
-
-    title('IAP Catalog')
-    table(
-      ['Item', 'Type', 'Price', 'Benefit / description'],
-      iapItems.map((item) => [
-        item.name,
-        item.item_type.replace('_', ' '),
-        money(item.price_usd),
-        value(item.description, 'No benefit described'),
-      ]),
-      [40, 32, 25, 85]
-    )
-
-    title('Configuration Notes')
-    table(
-      ['Area', 'Field', 'Value'],
-      [
-        ['Ads', 'Ad network', value(adsConfig?.ad_network)],
-        ['Ads', 'Revenue model', value(adsConfig?.revenue_model)],
-        ['Ads', 'Notes', value(adsConfig?.notes, 'No notes')],
-        ['IAP', 'Store', value(iapConfig?.store?.replace('_', ' '))],
-        ['IAP', 'Currency', value(iapConfig?.currency)],
-        ['IAP', 'Notes', value(iapConfig?.notes, 'No notes')],
-      ],
-      [30, 50, 102]
-    )
-
-    title('Case for Ethics')
-    const ethicsRows = [
-      ['Frequency caps', missingCaps === 0 ? 'Pass' : `${missingCaps} placement(s) need caps`, 'Caps limit ad pressure and protect player autonomy.'],
-      ['Optional value', 'Pass', 'Rewarded ads and IAP should remain optional, not required for normal progress.'],
-      ['Price clarity', iapItems.every((item) => item.price_usd != null && item.description) ? 'Pass' : 'Needs review', 'Every paid item should show price and benefit clearly.'],
-      ['Pressure level', riskLabel, 'Interstitials and missing caps increase pressure risk.'],
-    ]
-    table(['Check', 'Result', 'Explanation'], ethicsRows, [40, 32, 110])
-
-    title('Instructor Review')
-    table(
-      ['Field', 'Value'],
-      [
-        ['Grade', project.grade == null ? 'Not graded' : `${project.grade}/100`],
-        ['Comment', value(project.instructor_comment, 'No instructor comment yet')],
-        ['Submitted at', value(project.submitted_at, 'Not submitted')],
-        ['Graded at', value(project.graded_at, 'Not graded')],
-      ],
-      [50, 132]
-    )
-
-    footer()
-    doc.save(`emd-${safeFileName}-data.pdf`)
+    setPrintMode(mode)
   }
 
   if (loading) {
@@ -575,7 +270,7 @@ export default function OutputPage() {
       <PageContainer>
         <Skeleton className="h-8 w-full" />
         <Skeleton className="h-9 w49" />
-        <div className="grid gap-6 lg:grid-cols[1fr_300px]">
+        <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           <div className="space-y-4">
             <SkeletonCard />
             <SkeletonCard />
@@ -594,7 +289,7 @@ export default function OutputPage() {
   if (!project) {
     return (
       <PageContainer>
-        <p className="text-sm text-red-600">{error ?? 'Project not found'}</p>
+        <p className="text-sm text-red-600">{error ?? t('output.projectNotFound')}</p>
       </PageContainer>
     )
   }
@@ -602,33 +297,41 @@ export default function OutputPage() {
   const adPercent = adPlacements.length || iapItems.length ? Math.round((adPlacements.length / Math.max(1, adPlacements.length + iapItems.length)) * 100) : 0
   const iapPercent = adPlacements.length || iapItems.length ? 100 - adPercent : 0
 
+  const totalItems = adPlacements.length + iapItems.length
+  const pdfAdPercent = totalItems ? Math.round((adPlacements.length / totalItems) * 100) : 0
+  const pdfIapPercent = totalItems ? 100 - pdfAdPercent : 0
+  const missingCaps = adPlacements.filter((placement) => placement.frequency_cap == null).length
+  const interstitials = adPlacements.filter((placement) => placement.placement_type === 'interstitial').length
+  const riskScore = Math.min(10, missingCaps * 3 + interstitials * 2 + Math.max(0, iapItems.length - 3))
+  const riskLabel = riskScore >= 7 ? t('build.levels.high') : riskScore >= 4 ? t('build.levels.medium') : t('build.levels.low')
+  const exportDate = new Date().toISOString().slice(0, 10)
+
   return (
     <PageContainer>
-      <div className="no-print">
-        <StepIndicator current={4} />
-      </div>
+      <div className="no-print space-y-8">
+      <StepIndicator current={4} />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Output & Pitch</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-500">Export-ready monetization overview for instructor review.</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">{t('output.title')}</h1>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{t('output.subtitle')}</p>
         </div>
         <div className="no-print flex flex-wrap gap-2">
           <button onClick={handleExportCSV} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-orange-50">
             <DownloadIcon className="h-4 w-4 text-primary" />
-            CSV
+            {t('output.buttons.csv')}
           </button>
           <button onClick={() => handleExportPDF('data')} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-orange-50">
             <DownloadIcon className="h-4 w-4 text-primary" />
-            PDF
+            {t('output.buttons.pdf')}
           </button>
           <button onClick={() => handleExportPDF('ai')} className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:bg-orange-50">
             <AiIcon className="h-4 w-4 text-primary" />
-            PDF AI Recommended
+            {t('output.buttons.aiPdf')}
           </button>
           <button onClick={handleDelete} disabled={deleting} className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-600 shadow-sm transition hover:-translate-y-0.5 hover:bg-red-50 disabled:translate-y-0 disabled:opacity-50">
             <TrashIcon className="h-4 w-4" />
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('output.buttons.deleting') : t('output.buttons.delete')}
           </button>
         </div>
       </div>
@@ -644,19 +347,28 @@ export default function OutputPage() {
           <FadeInCard index={0}>
           <Card>
             <div className="border-b border-line pb-5">
-              <p className="text-sm font-bold text-slate-500">Monetization Overview</p>
+              <p className="text-sm font-bold text-slate-500">{t('output.overview.label')}</p>
               <h2 className="mt-2 text-4xl font-black tracking-tight text-slate-950">{project.title}</h2>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
-                {project.title} is a {(project.platform ?? ['game']).join(', ')} {(project.genre ?? ['F2P']).join(', ')} game for {project.target_audience ?? 'a defined audience'}.
-                The plan uses opt-in value moments and avoids coercive pressure patterns.
+                {t('output.overview.summary', {
+                  title: project.title,
+                  platform: (project.platform ?? [t('output.overview.fallbackPlatform')]).join(', '),
+                  genre: (project.genre ?? [t('output.overview.fallbackGenre')]).join(', '),
+                  audience: project.target_audience ?? t('output.overview.fallbackAudience'),
+                })}
               </p>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-4">
-              {['Entry', 'Gameplay', 'Outcome', 'Meta'].map((stage) => (
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['E', t('output.stages.entry')],
+                ['G', t('output.stages.gameplay')],
+                ['O', t('output.stages.outcome')],
+                ['M', t('output.stages.meta')],
+              ].map(([initial, stage]) => (
                 <div key={stage} className="rounded-lg bg-slate-50 p-4 text-center">
                   <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white font-black text-primary ring-1 ring-line">
-                    {stage[0]}
+                    {initial}
                   </div>
                   <p className="text-sm font-black text-slate-900">{stage}</p>
                 </div>
@@ -667,20 +379,24 @@ export default function OutputPage() {
 
           <FadeInCard index={1}>
           <Card>
-            <h2 className="mb-4 text-xl font-black text-slate-950">Monetization Flow</h2>
+            <h2 className="mb-4 text-xl font-black text-slate-950">{t('output.flow.title')}</h2>
             <div className="grid gap-4 md:grid-cols-2">
               {adPlacements.map((placement) => (
                 <div key={placement.id} className="rounded-lg border border-line bg-slate-50 p-4">
                   <Badge variant={placement.placement_type === 'interstitial' ? 'yellow' : 'green'}>{placement.placement_type}</Badge>
-                  <p className="mt-3 font-black text-slate-950">{placement.trigger_point ?? 'Ad placement'}</p>
-                  <p className="mt-1 text-sm text-slate-500">Frequency cap: {placement.frequency_cap ?? 'Not set'}</p>
+                  <p className="mt-3 font-black text-slate-950">{placement.trigger_point ?? t('output.flow.adPlacement')}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {t('output.flow.frequencyCap', { value: placement.frequency_cap ?? t('output.flow.notSet') })}
+                  </p>
                 </div>
               ))}
               {iapItems.map((item) => (
                 <div key={item.id} className="rounded-lg border border-line bg-slate-50 p-4">
                   <Badge variant="purple">{item.item_type}</Badge>
                   <p className="mt-3 font-black text-slate-950">{item.name}</p>
-                  <p className="mt-1 text-sm text-slate-500">{item.price_usd != null ? `$${item.price_usd}` : 'Free'} - {item.description ?? 'Benefit not specified'}</p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {item.price_usd != null ? `$${item.price_usd}` : t('output.flow.free')} - {item.description ?? t('output.flow.benefitNotSpecified')}
+                  </p>
                 </div>
               ))}
             </div>
@@ -691,19 +407,19 @@ export default function OutputPage() {
         <aside className="space-y-4">
           <FadeInCard index={0}>
           <Card>
-            <h2 className="font-black text-slate-950">Revenue Mix</h2>
+            <h2 className="font-black text-slate-950">{t('output.revenue.title')}</h2>
             {iapConfig?.store && (
               <p className="mt-2 text-sm font-semibold capitalize text-slate-500">
-                Store: {iapConfig.store.replace('_', ' ')}
+                {t('output.revenue.store', { store: iapConfig.store.replace('_', ' ') })}
               </p>
             )}
             <div className="mt-4 space-y-4">
               <div>
-                <div className="mb-2 flex justify-between text-sm font-bold"><span>Ads</span><span>{adPercent}%</span></div>
+                <div className="mb-2 flex justify-between text-sm font-bold"><span>{t('output.revenue.ads')}</span><span>{formatNumber(adPercent)}%</span></div>
                 <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-accent" style={{ width: `${adPercent}%` }} /></div>
               </div>
               <div>
-                <div className="mb-2 flex justify-between text-sm font-bold"><span>IAP</span><span>{iapPercent}%</span></div>
+                <div className="mb-2 flex justify-between text-sm font-bold"><span>{t('output.revenue.iap')}</span><span>{formatNumber(iapPercent)}%</span></div>
                 <div className="h-3 rounded-full bg-slate-100"><div className="h-3 rounded-full bg-primary" style={{ width: `${iapPercent}%` }} /></div>
               </div>
             </div>
@@ -716,23 +432,23 @@ export default function OutputPage() {
 
           <FadeInCard index={2}>
           <Card>
-            <h2 className="font-black text-slate-950">Case for Ethics</h2>
+            <h2 className="font-black text-slate-950">{t('output.ethics.title')}</h2>
             <ul className="mt-4 space-y-3 text-sm leading-6 text-slate-600">
-              <li>Frequency caps protect player autonomy by limiting ad pressure.</li>
-              <li>IAP offers remain optional with visible price and benefit.</li>
-              <li>Rewarded ads are presented as player-chosen value exchanges.</li>
+              <li>{t('output.ethics.frequency')}</li>
+              <li>{t('output.ethics.iap')}</li>
+              <li>{t('output.ethics.rewarded')}</li>
             </ul>
           </Card>
           </FadeInCard>
 
           <FadeInCard index={3}>
           <Card>
-            <h2 className="font-black text-slate-950">Feedback from Instructor</h2>
+            <h2 className="font-black text-slate-950">{t('output.feedback.title')}</h2>
             <div className="mt-4">
-              {project.status === 'graded' && <Badge variant="green">Grade {project.grade ?? '-'}/100</Badge>}
-              {project.status === 'returned' && <Badge variant="red">Returned for Revision</Badge>}
-              {(project.status === 'submitted' || project.status === 'resubmitted') && <Badge variant="blue">Pending Review</Badge>}
-              {project.status === 'draft' && <p className="text-sm text-slate-500">Submit your project to receive feedback.</p>}
+              {project.status === 'graded' && <Badge variant="green">{t('output.feedback.grade', { grade: project.grade ?? '-' })}</Badge>}
+              {project.status === 'returned' && <Badge variant="red">{t('output.feedback.returned')}</Badge>}
+              {(project.status === 'submitted' || project.status === 'resubmitted') && <Badge variant="blue">{t('output.feedback.pending')}</Badge>}
+              {project.status === 'draft' && <p className="text-sm text-slate-500">{t('output.feedback.draft')}</p>}
               {project.instructor_comment && (
                 <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">{project.instructor_comment}</p>
               )}
@@ -742,20 +458,41 @@ export default function OutputPage() {
 
           <div className="no-print sticky bottom-4 flex gap-3 rounded-lg border border-line bg-white p-3 shadow-lg">
             <button onClick={() => navigate(`/project/${projectId}/guardrail`)} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
-              Back
+              {t('output.buttons.back')}
             </button>
             {project.status === 'draft' || project.status === 'returned' ? (
               <button onClick={handleSubmit} disabled={submitting} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
-                {submitting ? 'Submitting...' : 'Submit'}
+                {submitting ? t('output.buttons.submitting') : t('output.buttons.submit')}
               </button>
             ) : (
               <button onClick={handleResubmit} disabled={submitting || project.status === 'under_review' || project.status === 'graded'} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
-                {submitting ? 'Opening...' : 'Edit Again'}
+                {submitting ? t('output.buttons.opening') : t('output.buttons.editAgain')}
               </button>
             )}
           </div>
         </aside>
       </div>
+      </div>
+
+      {printMode && project && createPortal(
+        <OutputPrintSheet
+          mode={printMode}
+          project={project}
+          adsConfig={adsConfig}
+          adPlacements={adPlacements}
+          iapItems={iapItems}
+          iapConfig={iapConfig}
+          aiSuggestions={printAiSuggestions}
+          exportDate={exportDate}
+          pdfAdPercent={pdfAdPercent}
+          pdfIapPercent={pdfIapPercent}
+          riskScore={riskScore}
+          riskLabel={riskLabel}
+          missingCaps={missingCaps}
+          interstitials={interstitials}
+        />,
+        document.body
+      )}
     </PageContainer>
   )
 }

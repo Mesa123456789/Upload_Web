@@ -4,10 +4,12 @@ import { enrollStudent } from '../../courses/services/courses.service'
 import PageContainer from '../../../app/layout/PageContainer'
 import Card from '../../../shared/components/Card'
 import FadeInCard from '../../../shared/components/FadeInCard'
+import { useI18n } from '../../../i18n/I18nProvider'
 
 // Dedicated page for joining a course via invite code.
 export default function JoinCoursePage() {
   const navigate = useNavigate()
+  const { t } = useI18n()
 
   const [inviteCode, setInviteCode] = useState('')
   const [joining, setJoining] = useState(false)
@@ -27,7 +29,7 @@ export default function JoinCoursePage() {
       // Brief pause so the user sees the success message, then redirect
       setTimeout(() => navigate('/dashboard'), 1500)
     } catch (err) {
-      setJoinError(err instanceof Error ? err.message : 'Failed to join course')
+      setJoinError(err instanceof Error ? err.message : t('joinCourse.failed'))
     } finally {
       setJoining(false)
     }
@@ -39,19 +41,19 @@ export default function JoinCoursePage() {
         {/* Back button */}
         <button
           onClick={() => navigate('/dashboard')}
-          className="text-sm text-gray-400 hover:text-gray-600 mb-6 flex items-center gap-1.5 transition-colors"
+          className="ds-button ds-button-secondary mb-6 min-h-0 px-4 py-2"
         >
-          &larr; Back to Dashboard
+          &larr; {t('joinCourse.backToDashboard')}
         </button>
 
         {/* Page title */}
         <div className="mb-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-2">
-            Student
+          <p className="ds-eyebrow mb-2">
+            {t('joinCourse.eyebrow')}
           </p>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Join a Course</h1>
-          <p className="text-sm text-gray-500 leading-6 mt-1">
-            Enter the invite code your instructor gave you
+          <h1 className="ds-page-title">{t('joinCourse.title')}</h1>
+          <p className="ds-subtitle mt-1">
+            {t('joinCourse.subtitle')}
           </p>
         </div>
 
@@ -65,21 +67,21 @@ export default function JoinCoursePage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-gray-900 font-bold mb-1">Joined successfully!</p>
-              <p className="text-sm text-gray-400">Redirecting to dashboard...</p>
+              <p className="text-gray-900 font-bold mb-1">{t('joinCourse.success')}</p>
+              <p className="text-sm text-gray-400">{t('joinCourse.redirecting')}</p>
             </div>
           ) : (
             <form onSubmit={handleJoin} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-[0.18em] text-primary mb-2">
-                  Invite Code
+                  {t('joinCourse.inviteCode')}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. DG-A4F2"
+                  placeholder={t('joinCourse.placeholder')}
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                  className="w-full border border-black/10 rounded-xl px-4 py-3 text-sm font-mono bg-background-main focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-gray-400"
+                  className="ds-input font-mono uppercase"
                   autoFocus
                 />
               </div>
@@ -91,9 +93,9 @@ export default function JoinCoursePage() {
               <button
                 type="submit"
                 disabled={joining || !inviteCode.trim()}
-                className="w-full rounded-full bg-primary py-2.5 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50 transition-colors"
+                className="ds-button ds-button-primary w-full disabled:opacity-50"
               >
-                {joining ? 'Joining...' : 'Join Course'}
+                {joining ? t('joinCourse.joining') : t('joinCourse.submit')}
               </button>
             </form>
           )}

@@ -8,10 +8,12 @@ import Card from '../../../shared/components/Card'
 import FadeInCard from '../../../shared/components/FadeInCard'
 import Badge from '../../../shared/components/Badge'
 import { Skeleton, SkeletonCard, SkeletonRow} from '../../../shared/components/Skeleton'
+import { useI18n } from '../../../i18n/I18nProvider'
 
 export default function CourseDetailPage() {
   const { courseId } = useParams<{ courseId: string }>()
   const navigate = useNavigate()
+  const { t, formatDate, formatNumber } = useI18n()
 
   const [course, setCourse] = useState<Course | null>(null)
   const [students, setStudents] = useState<Profile[]>([])
@@ -32,7 +34,7 @@ export default function CourseDetailPage() {
           .maybeSingle()
 
         if (courseError) throw new Error(courseError.message)
-        if (!courseData) throw new Error('Course not found')
+        if (!courseData) throw new Error(t('courseDetail.notFound'))
         setCourse(courseData)
 
         // Fetch instructor profile
@@ -47,7 +49,7 @@ export default function CourseDetailPage() {
         const studentList = await listEnrolledStudents(courseId)
         setStudents(studentList)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load course')
+        setError(err instanceof Error ? err.message : t('courseDetail.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -59,7 +61,7 @@ export default function CourseDetailPage() {
   async function handleLeave() {
     if (!courseId || !course) return
     const confirmed = window.confirm(
-      `Leave "${course.title}"? You will need the invite code to rejoin.`
+      t('courseDetail.leaveConfirm', { title: course.title })
     )
     if (!confirmed) return
 
@@ -69,7 +71,7 @@ export default function CourseDetailPage() {
       await leaveCourse(courseId)
       navigate('/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to leave course')
+      setError(err instanceof Error ? err.message : t('courseDetail.leaveFailed'))
       setLeaving(false)
     }
   }
@@ -95,12 +97,12 @@ export default function CourseDetailPage() {
   if (!course) {
     return (
       <PageContainer>
-        <p className="text-red-600 text-sm">{error ?? 'Course not found'}</p>
+        <p className="text-red-600 text-sm">{error ?? t('courseDetail.notFound')}</p>
         <button
           onClick={() => navigate('/dashboard')}
           className="mt-4 rounded-full border-2 border-gray-200 px-6 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors"
         >
-          Back to Dashboard
+          {t('courseDetail.backToDashboard')}
         </button>
       </PageContainer>
     )
@@ -114,16 +116,16 @@ export default function CourseDetailPage() {
           onClick={() => navigate('/dashboard')}
           className="mt-1 rounded-full border-2 border-gray-200 px-4 py-1.5 text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors shrink-0"
         >
-          &larr; Back
+          &larr; {t('courseDetail.back')}
         </button>
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-1">
-            Course
+            {t('common.course')}
           </p>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">{course.title}</h1>
             <Badge variant={course.is_active ? 'green' : 'default'}>
-              {course.is_active ? 'Active' : 'Closed'}
+              {course.is_active ? t('common.active') : t('common.closed')}
             </Badge>
           </div>
           {course.description && (
@@ -142,19 +144,19 @@ export default function CourseDetailPage() {
       <FadeInCard index={0}>
       <Card>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          Course Info
+          {t('courseDetail.courseInfo')}
         </p>
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid gap-4 text-sm sm:grid-cols-2">
           <div>
-            <span className="text-gray-500 block mb-1.5">Invite Code</span>
+            <span className="text-gray-500 block mb-1.5">{t('joinCourse.inviteCode')}</span>
             <code className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary font-mono">
               {course.invite_code}
             </code>
           </div>
           <div>
-            <span className="text-gray-500 block mb-1.5">Created</span>
+            <span className="text-gray-500 block mb-1.5">{t('common.created')}</span>
             <span className="text-gray-900 font-medium">
-              {new Date(course.created_at).toLocaleDateString()}
+              {formatDate(course.created_at)}
             </span>
           </div>
         </div>
@@ -165,26 +167,26 @@ export default function CourseDetailPage() {
       <FadeInCard index={1}>
       <Card>
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-4">
-          Instructor
+          {t('common.instructor')}
         </p>
         {!instructorProfile ? (
-          <p className="text-sm text-gray-400">Instructor info not available.</p>
+          <p className="text-sm text-gray-400">{t('courseDetail.instructorInfoUnavailable')}</p>
         ) : (
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid gap-4 text-sm sm:grid-cols-2">
             <div>
-              <span className="text-gray-500 block mb-1.5">Name</span>
+              <span className="text-gray-500 block mb-1.5">{t('common.name')}</span>
               <span className="font-bold text-gray-900">
                 {instructorProfile.display_name ?? '—'}
               </span>
             </div>
             {instructorProfile.contact_info && (
               <div>
-                <span className="text-gray-500 block mb-1.5">Contact</span>
+                <span className="text-gray-500 block mb-1.5">{t('common.contact')}</span>
                 <span className="text-gray-900">{instructorProfile.contact_info}</span>
               </div>
             )}
             <div>
-              <span className="text-gray-500 block mb-1.5">Email</span>
+              <span className="text-gray-500 block mb-1.5">{t('common.email')}</span>
               <span className="text-gray-900">{instructorProfile.email}</span>
             </div>
           </div>
@@ -197,20 +199,20 @@ export default function CourseDetailPage() {
       <Card>
         <div className="flex items-center gap-3 mb-4">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-            Students
+            {t('courseDetail.students')}
           </p>
           <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
-            {students.length}
+            {formatNumber(students.length)}
           </span>
         </div>
         {students.length === 0 ? (
-          <p className="text-sm text-gray-400">No students enrolled yet.</p>
+          <p className="text-sm text-gray-400">{t('courseDetail.noStudents')}</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-black/5">
-                <th className="text-left text-xs font-bold text-gray-400 pb-2">Name</th>
-                <th className="text-left text-xs font-bold text-gray-400 pb-2">Student Code</th>
+                <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('common.name')}</th>
+                <th className="text-left text-xs font-bold text-gray-400 pb-2">{t('common.studentCode')}</th>
               </tr>
             </thead>
             <tbody>
@@ -237,10 +239,10 @@ export default function CourseDetailPage() {
           disabled={leaving}
           className="rounded-full bg-red-500 px-6 py-2.5 text-sm font-bold text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
         >
-          {leaving ? 'Leaving...' : 'Leave Course'}
+          {leaving ? t('courseDetail.leaving') : t('courseDetail.leave')}
         </button>
         <p className="text-xs text-gray-400 mt-2">
-          You will need the invite code to rejoin this course.
+          {t('courseDetail.leaveHelp')}
         </p>
       </div>
     </PageContainer>

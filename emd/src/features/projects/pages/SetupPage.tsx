@@ -11,6 +11,7 @@ import StepIndicator from './components/StepIndicator'
 import AiSuggestionPanel from './components/AiSuggestionPanel'
 import FadeInCard from '../../../shared/components/FadeInCard'
 import { useChat } from '../context/ChatContext'
+import { useI18n } from '../../../i18n/I18nProvider'
 
 const MAIN_GENRES = ['Puzzle', 'Action', 'RPG', 'Simulation', 'Strategy', 'Casual', 'Sports', 'Adventure']
 const MORE_GENRES = [
@@ -38,8 +39,10 @@ const MORE_GENRES = [
 ]
 const PLATFORMS = ['Mobile (iOS)', 'Mobile (Android)', 'PC', 'Console', 'Web']
 const AUDIENCES = ['All ages', 'Kids', 'Teens', 'Casual adults', 'Core players']
+const SESSION_LENGTHS = ['Under 5 min', '5-10 min', '10-30 min', '30+ min']
 
-const inputClass = 'w-full rounded-lg border border-line bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-slate-400'
+const inputClass = 'ds-input font-medium'
+const optionKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 
 export default function SetupPage() {
   const { id: projectId } = useParams<{ id: string }>()
@@ -47,6 +50,8 @@ export default function SetupPage() {
   const courseIdFromQuery = searchParams.get('courseId')
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { t } = useI18n()
+  const optionLabel = (group: string, value: string) => t(`setup.${group}.${optionKey(value)}`)
 
   const [_project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -55,6 +60,7 @@ export default function SetupPage() {
   const [showMoreGenres, setShowMoreGenres] = useState(false)
   const [title, setTitle] = useState('')
   const [genre, setGenre] = useState<string[]>([])
+  const [customGenre, setCustomGenre] = useState('')
   const [platform, setPlatform] = useState<string[]>([])
   const [customPlatform, setCustomPlatform] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
@@ -101,7 +107,7 @@ export default function SetupPage() {
           setCoreMechanic(project.core_mechanic ?? '')
           setSessionLength(project.session_length ?? '5-10 min')
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to load project')
+          setError(err instanceof Error ? err.message : t('setup.loadFailed'))
         }
       }
       setLoading(false)
@@ -120,12 +126,26 @@ export default function SetupPage() {
     setCustomPlatform('')
   }
 
+  function addCustomGenre() {
+    const nextGenre = customGenre.trim()
+    if (!nextGenre) return
+    setGenre((current) => current.includes(nextGenre) ? current : [...current, nextGenre])
+    setCustomGenre('')
+  }
+
+  // Custom genres typed by the user aren't in the genreOptions dictionary,
+  // so optionLabel() would fall back to showing the raw i18n key string —
+  // pass those through as-is instead of translating.
+  function genreLabel(item: string) {
+    return MAIN_GENRES.includes(item) || MORE_GENRES.includes(item) ? optionLabel('genreOptions', item) : item
+  }
+
   // logic เซฟกลาง — ใช้ทั้ง Save Draft และ Continue
   // ต่างกันแค่ current_step (Continue = step 2, Save Draft = คงสถานะปัจจุบันไม่ขยับ)
   // current_step ของอาจารย์ (draft tracking) ไม่ถูกแก้ถ้าไม่ได้ตั้งใจส่งมา
   async function saveProject(nextStep?: number): Promise<string | null> {
     if (!title.trim()) {
-      setError('Game title is required')
+      setError(t('setup.titleRequired'))
       return null
     }
     if (!user) return null
@@ -134,7 +154,7 @@ export default function SetupPage() {
 
     if (!savedProjectId) {
       if (!courseIdFromQuery) {
-        setError('Course ID is missing. Please return to the dashboard.')
+        setError(t('setup.courseMissing'))
         return null
       }
       const newProject = await createProject({
@@ -166,12 +186,12 @@ export default function SetupPage() {
     try {
       const savedProjectId = await saveProject(2)
       if (savedProjectId) {
-        notify.success('บันทึกแล้ว ไปต่อขั้นที่ 2 ได้เลย')
+        notify.success(t('setup.savedNext'))
         navigate(`/project/${savedProjectId}/build`)
       }
     } catch (err) {
-      notify.error('บัททึกไม่สำเร็จ ลองใหม่อีกครั้ง')
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      notify.error(t('setup.saveErrorToast'))
+      setError(err instanceof Error ? err.message : t('setup.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -185,12 +205,12 @@ export default function SetupPage() {
     try {
       const savedProjectId = await saveProject()
       if (savedProjectId) {
-        notify.success('บันทึก Draft แล้ว')
+        notify.success(t('setup.saveDraftSuccess'))
         navigate('/dashboard')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save draft')
-      notify.error('บันทึก Draft ไม่สำเร็จ ลองอีกครั้ง')
+      setError(err instanceof Error ? err.message : t('setup.saveDraftFailed'))
+      notify.error(t('setup.draftErrorToast'))
       setSaving(false)
     }
   }
@@ -223,9 +243,9 @@ export default function SetupPage() {
       <StepIndicator current={1} />
 
       <div>
-        <h1 className="text-3xl font-black tracking-tight text-slate-950">Project Setup</h1>
+        <h1 className="text-3xl font-black tracking-tight text-slate-950">{t('setup.title')}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-500">
-          Define the game context so the assistant can generate relevant ethical design guidance.
+          {t('setup.subtitle')}
         </p>
       </div>
 
@@ -239,21 +259,21 @@ export default function SetupPage() {
         <div className="space-y-6">
           <FadeInCard index={0}>
           <Card>
-            <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">A. Basic Info</p>
+            <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">{t('setup.basicInfo')}</p>
             <div className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Game Title</label>
+                <label className="mb-2 block text-sm font-bold text-slate-700">{t('setup.gameTitle')}</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
-                  placeholder="DragonVille, PuzzleWorld Plus..."
+                  placeholder={t('setup.gameTitlePlaceholder')}
                   className={inputClass}
                 />
               </div>
 
               <div>
-                <label className="mb-3 block text-sm font-bold text-slate-700">Genre</label>
+                <label className="mb-3 block text-sm font-bold text-slate-700">{t('setup.genre')}</label>
                 <div className="flex flex-wrap gap-2">
                   {MAIN_GENRES.map((item) => (
                     <button
@@ -266,7 +286,7 @@ export default function SetupPage() {
                           : 'border-line bg-white text-slate-600 hover:border-primary/30'
                       }`}
                     >
-                      {item}
+                    {optionLabel('genreOptions', item)}
                     </button>
                   ))}
                   <button
@@ -274,36 +294,78 @@ export default function SetupPage() {
                     onClick={() => setShowMoreGenres((value) => !value)}
                     className="rounded-md border border-dashed border-primary/40 bg-orange-50 px-3 py-2 text-sm font-black text-primary transition hover:border-primary hover:bg-orange-100"
                   >
-                    {showMoreGenres ? 'less' : '...more'}
+                    {showMoreGenres ? t('setup.less') : t('setup.more')}
                   </button>
                 </div>
                 {showMoreGenres && (
-                  <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-line bg-slate-50 p-3">
-                    {MORE_GENRES.map((item) => (
+                  <div className="mt-3 rounded-lg border border-line bg-slate-50 p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {MORE_GENRES.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setGenre(toggleArrayItem(genre, item))}
+                          className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
+                            genre.includes(item)
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-line bg-white text-slate-600 hover:border-primary/30'
+                          }`}
+                        >
+                      {optionLabel('genreOptions', item)}
+                        </button>
+                      ))}
+                      {genre.filter((item) => !MAIN_GENRES.includes(item) && !MORE_GENRES.includes(item)).map((item) => (
+                        // Custom genres have no "source list" to fall back to when
+                        // unselected, so they only have one state: present = selected.
+                        // Clicking removes it from the array outright instead of toggling.
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setGenre((current) => current.filter((g) => g !== item))}
+                          className="relative rounded-md border border-primary bg-primary px-3 py-2 text-sm font-bold text-white transition hover:bg-primary/90"
+                          aria-label={`Remove custom genre ${item}`}
+                        >
+                          {item}
+                          <span
+                            className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white bg-yellow-400"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="text"
+                        value={customGenre}
+                        onChange={(event) => setCustomGenre(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            addCustomGenre()
+                          }
+                        }}
+                        placeholder={t('setup.customGenrePlaceholder')}
+                        className={`${inputClass} min-w-0`}
+                      />
                       <button
-                        key={item}
                         type="button"
-                        onClick={() => setGenre(toggleArrayItem(genre, item))}
-                        className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
-                          genre.includes(item)
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-line bg-white text-slate-600 hover:border-primary/30'
-                        }`}
+                        onClick={addCustomGenre}
+                        className="shrink-0 rounded-lg border border-primary/30 bg-orange-50 px-4 py-2 text-sm font-black text-primary transition hover:border-primary hover:bg-orange-100"
                       >
-                        {item}
+                        {t('setup.add')}
                       </button>
-                    ))}
+                    </div>
                   </div>
                 )}
                 {genre.length > 0 && (
                   <p className="mt-2 text-xs font-semibold text-slate-500">
-                    Selected: {genre.join(', ')}
+                    {t('setup.selected', { items: genre.map((item) => genreLabel(item)).join(', ') })}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="mb-3 block text-sm font-bold text-slate-700">Platform</label>
+                <label className="mb-3 block text-sm font-bold text-slate-700">{t('setup.platform')}</label>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {PLATFORMS.map((item) => (
                     <label
@@ -320,7 +382,7 @@ export default function SetupPage() {
                         onChange={() => setPlatform(toggleArrayItem(platform, item))}
                         className="h-4 w-4 accent-primary"
                       />
-                      {item}
+                    {optionLabel('platformOptions', item)}
                     </label>
                   ))}
                   <div className="flex gap-2">
@@ -334,7 +396,7 @@ export default function SetupPage() {
                           addCustomPlatform()
                         }
                       }}
-                      placeholder="Add your own platform..."
+                      placeholder={t('setup.customPlatformPlaceholder')}
                       className={`${inputClass} min-w-0`}
                     />
                     <button
@@ -342,7 +404,7 @@ export default function SetupPage() {
                       onClick={addCustomPlatform}
                       className="shrink-0 rounded-lg border border-primary/30 bg-orange-50 px-4 py-2 text-sm font-black text-primary transition hover:border-primary hover:bg-orange-100"
                     >
-                      Add
+                      {t('setup.add')}
                     </button>
                   </div>
                 </div>
@@ -371,7 +433,7 @@ export default function SetupPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Target Audience</label>
+                <label className="mb-2 block text-sm font-bold text-slate-700">{t('setup.targetAudience')}</label>
                 <select
                   value={targetAudience}
                   onChange={(event) => {
@@ -380,9 +442,9 @@ export default function SetupPage() {
                   }}
                   className={inputClass}
                 >
-                  <option value="">Select audience</option>
+                  <option value="">{t('setup.selectAudience')}</option>
                   {AUDIENCES.map((item) => (
-                    <option key={item} value={item}>{item}</option>
+                    <option key={item} value={item}>{optionLabel('audienceOptions', item)}</option>
                   ))}
                 </select>
                 <input
@@ -392,7 +454,7 @@ export default function SetupPage() {
                     setCustomTargetAudience(event.target.value)
                     if (event.target.value.trim()) setTargetAudience('')
                   }}
-                  placeholder="Or type your own audience..."
+                  placeholder={t('setup.customAudiencePlaceholder')}
                   className={`${inputClass} mt-3`}
                 />
               </div>
@@ -402,28 +464,27 @@ export default function SetupPage() {
 
           <FadeInCard index={1}>
           <Card>
-            <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">B. Session & Loop</p>
+            <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">{t('setup.sessionLoop')}</p>
             <div className="space-y-5">
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Typical Session Length</label>
+                <label className="mb-2 block text-sm font-bold text-slate-700">{t('setup.sessionLength')}</label>
                 <select
                   value={sessionLength}
                   onChange={(event) => setSessionLength(event.target.value)}
                   className={inputClass}
                 >
-                  <option value="Under 5 min">Under 5 min</option>
-                  <option value="5-10 min">5-10 min</option>
-                  <option value="10-30 min">10-30 min</option>
-                  <option value="30+ min">30+ min</option>
+                  {SESSION_LENGTHS.map((item) => (
+                    <option key={item} value={item}>{optionLabel('sessionOptions', item)}</option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Core Loop</label>
+                <label className="mb-2 block text-sm font-bold text-slate-700">{t('setup.coreLoop')}</label>
                 <textarea
                   value={coreMechanic}
                   onChange={(event) => setCoreMechanic(event.target.value)}
-                  placeholder="Player enters level, wins or loses, receives rewards, upgrades, then starts the next challenge."
+                  placeholder={t('setup.coreLoopPlaceholder')}
                   className={`${inputClass} min-h-28 resize-y leading-6`}
                 />
               </div>
@@ -435,35 +496,35 @@ export default function SetupPage() {
         <aside className="space-y-4">
           <FadeInCard index={2}>
           <Card>
-            <h2 className="text-base font-black text-slate-950">Context Preview</h2>
+            <h2 className="text-base font-black text-slate-950">{t('setup.contextPreview')}</h2>
             <div className="mt-4 rounded-lg bg-slate-50 p-4 text-sm font-semibold text-slate-600">
-              Start <span className="text-slate-300">→</span> Play <span className="text-slate-300">→</span> Outcome <span className="text-slate-300">→</span> Reward <span className="text-slate-300">→</span> Next
+              {t('setup.flowPreview')}
             </div>
           </Card>
           </FadeInCard>
 
           <FadeInCard index={3}>
           <Card>
-            <h2 className="text-base font-black text-slate-950">Quick Summary</h2>
+            <h2 className="text-base font-black text-slate-950">{t('setup.quickSummary')}</h2>
             <dl className="mt-4 space-y-3 text-sm">
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Title</dt>
-                <dd className="font-bold text-slate-900">{title || 'Untitled project'}</dd>
+                <dt className="text-slate-500">{t('setup.summaryTitle')}</dt>
+                <dd className="font-bold text-slate-900">{title || t('setup.untitled')}</dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Genre</dt>
+                <dt className="text-slate-500">{t('setup.summaryGenre')}</dt>
                 <dd className="max-w-44 text-right font-bold text-slate-900">
-                  {genre.length > 0 ? genre.join(', ') : 'Not set'}
+                  {genre.length > 0 ? genre.join(', ') : t('setup.notSet')}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Platforms</dt>
+                <dt className="text-slate-500">{t('setup.summaryPlatforms')}</dt>
                 <dd className="max-w-44 text-right font-bold text-slate-900">
-                  {platform.length > 0 ? platform.join(', ') : 'Not set'}
+                  {platform.length > 0 ? platform.join(', ') : t('setup.notSet')}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
-                <dt className="text-slate-500">Session</dt>
+                <dt className="text-slate-500">{t('setup.summarySession')}</dt>
                 <dd className="font-bold text-slate-900">{sessionLength}</dd>
               </div>
             </dl>
@@ -481,14 +542,14 @@ export default function SetupPage() {
               disabled={saving}
               className="flex-1 rounded-lg border border-line px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Save Draft'}
+              {saving ? t('common.saving') : t('setup.saveDraft')}
             </button>
             <button
               type="submit"
               disabled={saving}
               className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:bg-primary-light disabled:opacity-50"
             >
-              {saving ? 'Saving...' : 'Continue'}
+              {saving ? t('common.saving') : t('setup.continue')}
             </button>
           </div>
         </aside>

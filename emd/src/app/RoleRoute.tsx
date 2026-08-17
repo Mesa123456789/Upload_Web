@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/context/useAuth'
-import Spinner from '../shared/components/Spinner'
+import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
 
 interface RoleRouteProps {
   // The role required to access child routes
@@ -16,11 +16,7 @@ export default function RoleRoute({ role }: RoleRouteProps) {
   // This prevents a race where session exists but profile hasn't loaded,
   // which would cause an incorrect redirect away from instructor pages.
   if (loading || !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <RouteLoadingSkeleton />
   }
 
   if (profile.role !== role) {

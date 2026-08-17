@@ -1,60 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '../../../../i18n/I18nProvider'
 import { useChat } from '../../context/ChatContext'
 import { loadSuggestions } from '../../services/chat.service'
- 
+
 type Stage = 'setup' | 'build' | 'guardrail' | 'output'
- 
+
 interface AiSuggestionPanelProps {
   stage: Stage
   projectId: string
 }
- 
-// tips เริ่มต้นตาม stage (ของเดิม คงไว้เป็นไกด์เริ่มต้น)
-const baseTips: Record<Stage, string[]> = {
-  setup: [
-    'กำหนดกลุ่มเป้าหมายให้ชัด เพื่อให้การออกแบบ monetization ตรงกับความคาดหวังผู้เล่น',
-    'อธิบาย core loop เป็นลำดับ: เริ่ม → ลงมือ → ผลลัพธ์ → รางวัล → อัปเกรด',
-    'เลี่ยงระบุแนวเกมกว้าง ๆ ถ้าพฤติกรรมผู้เล่นสำคัญ เช่น match-3, idle, collection',
-  ],
-  build: [
-    'Rewarded ad ควรเป็นทางเลือกที่มีประโยชน์ ไม่ใช่บังคับเพื่อเล่นต่อ',
-    'ตั้ง frequency cap ให้เรียบร้อยก่อนไปขั้น guardrail',
-    'ไอเทม IAP ควรบอกราคาและสิ่งที่ได้รับให้ชัดในประโยคเดียว',
-  ],
-  guardrail: [
-    'แก้จุดความรุนแรงสูงก่อน โดยเฉพาะ ad cap ที่ขาด หรือคุณค่าการซื้อที่ไม่ชัด',
-    'Interstitial ad กดดันผู้เล่นมากกว่า rewarded จึงควรใช้อย่างประหยัด',
-    'แผนที่เป็นธรรมต้องให้ผู้เล่นปฏิเสธข้อเสนอได้โดยไม่ขวางความก้าวหน้าปกติ',
-  ],
-  output: [
-    'Pitch ควรอธิบายว่าทำไมแผนถึงเป็นธรรม ไม่ใช่แค่บอกว่าหาเงินยังไง',
-    'ระบุ frequency cap และความเป็นทางเลือก เป็นหลักฐานเรื่องสิทธิ์ผู้เล่น',
-    'ก่อนส่ง ตรวจว่าทุกไอเทมมีราคาและประโยชน์ชัดเจน',
-  ],
+
+const tipKeys: Record<Stage, string[]> = {
+  setup: ['setupAudience', 'setupCoreLoop', 'setupGenre'],
+  build: ['buildRewarded', 'buildCap', 'buildIap'],
+  guardrail: ['guardrailHighRisk', 'guardrailInterstitial', 'guardrailFairPlan'],
+  output: ['outputPitch', 'outputEvidence', 'outputReview'],
 }
- 
-const titles: Record<Stage, string> = {
-  setup: 'AI แนะนำสำหรับ Setup',
-  build: 'AI แนะนำสำหรับ Builder',
-  guardrail: 'AI แนะนำสำหรับ Guardrail',
-  output: 'AI แนะนำสำหรับ Output',
+
+const categoryLabelKeys: Record<string, string> = {
+  title: 'setup.gameTitle',
+  genre: 'setup.genre',
+  platform: 'setup.platform',
+  target_audience: 'setup.targetAudience',
+  core_mechanic: 'setup.coreLoop',
+  session_length: 'setup.sessionLength',
 }
- 
-// ป้ายหมวด GDD เป็นภาษาไทย (สำหรับ card สรุป)
-const categoryLabels: Record<string, string> = {
-  title: 'ชื่อเกม',
-  genre: 'แนวเกม',
-  platform: 'แพลตฟอร์ม',
-  target_audience: 'กลุ่มเป้าหมาย',
-  core_mechanic: 'Core Loop',
-  session_length: 'ความยาว Session',
-}
- 
+
 export default function AiSuggestionPanel({ stage, projectId }: AiSuggestionPanelProps) {
   const { suggestions, setSuggestionsFromDb } = useChat()
- 
-  // โหลด suggestion เก่าจาก Supabase ตอนเปิดหน้า (persistent)
-  // ใส่ projectId ว่าง = หน้า /project/new ยังไม่มี project จริง ข้ามการโหลด
+  const { t } = useI18n()
+
   useEffect(() => {
     if (!projectId) return
     let cancelled = false
@@ -63,53 +38,46 @@ export default function AiSuggestionPanel({ stage, projectId }: AiSuggestionPane
         if (!cancelled) setSuggestionsFromDb(items)
       })
       .catch((err) => {
-        console.error('โหลดคำแนะนำจาก DB ไม่สำเร็จ:', err)
+        console.error('[AI suggestions] Failed to load suggestions:', err)
       })
     return () => {
       cancelled = true
     }
   }, [projectId, setSuggestionsFromDb])
- 
-  // toggle เปิด/ปิด tips เริ่มต้น (เก็บ localStorage เหมือนเดิม)
+
   const [tipsEnabled, setTipsEnabled] = useState(() => {
     return window.localStorage.getItem('emd-ai-suggestions') !== 'off'
   })
+
   useEffect(() => {
     window.localStorage.setItem('emd-ai-suggestions', tipsEnabled ? 'on' : 'off')
   }, [tipsEnabled])
- 
-  // พับ/กาง panel (default พับ)
+
   const [expanded, setExpanded] = useState(false)
- 
-  // notification เด้งเมื่อมีคำแนะนำ AI ใหม่จากแชต (ไม่ใช่ของเก่าที่โหลดจาก DB)
-  // suggestion จาก DB จะมี createdAt=0 (ดู setSuggestionsFromDb ใน ChatContext)
   const [showNotif, setShowNotif] = useState(false)
   const prevCountRef = useRef(suggestions.length)
- 
+
   useEffect(() => {
     const isNewFromChat = suggestions.length > 0 && suggestions[0].createdAt !== 0
     if (suggestions.length > prevCountRef.current && isNewFromChat) {
       setShowNotif(true)
-      const timer = setTimeout(() => setShowNotif(false), 2500) // เด้ง ~2.5 วิ
+      const timer = setTimeout(() => setShowNotif(false), 2500)
       prevCountRef.current = suggestions.length
       return () => clearTimeout(timer)
     }
     prevCountRef.current = suggestions.length
   }, [suggestions.length, suggestions])
- 
-  // คำแนะนำ AI เรียงใหม่สุดอยู่บน
+
   const aiSuggestions = [...suggestions].reverse()
- 
+
   return (
     <div style={styles.wrap}>
-      {/* notification เด้ง */}
       {showNotif && (
         <div style={styles.notif}>
-          <span>🔔 มีคำแนะนำใหม่จาก AI</span>
+          <span>{t('aiSuggestion.newSuggestion')}</span>
         </div>
       )}
- 
-      {/* หัว panel — คลิก/hover เพื่อกาง */}
+
       <div
         style={styles.header}
         onClick={() => setExpanded((v) => !v)}
@@ -124,41 +92,38 @@ export default function AiSuggestionPanel({ stage, projectId }: AiSuggestionPane
         }}
       >
         <div>
-          <p style={styles.kicker}>AI Suggestion</p>
-          <h2 style={styles.title}>{titles[stage]}</h2>
+          <p style={styles.kicker}>{t('aiSuggestion.kicker')}</p>
+          <h2 style={styles.title}>{t(`aiSuggestion.titles.${stage}`)}</h2>
         </div>
         <div style={styles.headerRight}>
-          {aiSuggestions.length > 0 && (
-            <span style={styles.badge}>{aiSuggestions.length}</span>
-          )}
+          {aiSuggestions.length > 0 && <span style={styles.badge}>{aiSuggestions.length}</span>}
           <span style={styles.chevron}>{expanded ? '▲' : '▼'}</span>
         </div>
       </div>
- 
-      {/* เนื้อหา — กางเมื่อ expanded */}
+
       {expanded && (
         <div style={styles.body}>
-          {/* คำแนะนำ AI จริง */}
           {aiSuggestions.length > 0 && (
             <div style={styles.section}>
-              <p style={styles.sectionLabel}>คำแนะนำจากบทสนทนา AI</p>
+              <p style={styles.sectionLabel}>{t('aiSuggestion.conversationSuggestions')}</p>
               <ul style={styles.list}>
-                {aiSuggestions.map((s) => (
-                  <li key={s.id} style={styles.aiCard}>
+                {aiSuggestions.map((suggestion) => (
+                  <li key={suggestion.id} style={styles.aiCard}>
                     <span style={styles.catBadge}>
-                      {categoryLabels[s.category] ?? s.category}
+                      {categoryLabelKeys[suggestion.category]
+                        ? t(categoryLabelKeys[suggestion.category])
+                        : suggestion.category}
                     </span>
-                    <span style={styles.aiAdvice}>{s.advice}</span>
+                    <span style={styles.aiAdvice}>{suggestion.advice}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
- 
-          {/* tips เริ่มต้น + toggle */}
+
           <div style={styles.section}>
             <div style={styles.tipHeader}>
-              <p style={styles.sectionLabel}>คำแนะนำเริ่มต้น</p>
+              <p style={styles.sectionLabel}>{t('aiSuggestion.starterTips')}</p>
               <button
                 type="button"
                 onClick={(e) => {
@@ -177,15 +142,17 @@ export default function AiSuggestionPanel({ stage, projectId }: AiSuggestionPane
                     transform: tipsEnabled ? 'translateX(20px)' : 'translateX(0)',
                   }}
                 />
-                <span style={styles.srOnly}>{tipsEnabled ? 'ปิด tips' : 'เปิด tips'}</span>
+                <span style={styles.srOnly}>
+                  {tipsEnabled ? t('aiSuggestion.disableTips') : t('aiSuggestion.enableTips')}
+                </span>
               </button>
             </div>
             {tipsEnabled && (
               <ul style={styles.list}>
-                {baseTips[stage].map((tip) => (
-                  <li key={tip} style={styles.tipItem}>
+                {tipKeys[stage].map((tipKey) => (
+                  <li key={tipKey} style={styles.tipItem}>
                     <span style={styles.dot} />
-                    <span>{tip}</span>
+                    <span>{t(`aiSuggestion.tips.${tipKey}`)}</span>
                   </li>
                 ))}
               </ul>
@@ -196,7 +163,7 @@ export default function AiSuggestionPanel({ stage, projectId }: AiSuggestionPane
     </div>
   )
 }
- 
+
 const styles: Record<string, React.CSSProperties> = {
   wrap: { position: 'relative', width: '100%' },
   notif: {

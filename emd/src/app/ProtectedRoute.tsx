@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../features/auth/context/useAuth'
-import Spinner from '../shared/components/Spinner'
+import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
 
 // Wraps any route that requires an authenticated session.
 // Shows spinner while auth state is loading.
@@ -10,11 +10,7 @@ export default function ProtectedRoute() {
   const { session, loading } = useAuth()
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    )
+    return <RouteLoadingSkeleton />
   }
 
   if (!session) {

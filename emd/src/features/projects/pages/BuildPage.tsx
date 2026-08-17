@@ -23,11 +23,13 @@ import { notify } from '../../../shared/lib/toast'
 import StepIndicator from './components/StepIndicator'
 import AiSuggestionPanel from './components/AiSuggestionPanel'
 import FadeInCard from '../../../shared/components/FadeInCard'
+import { useI18n } from '../../../i18n/I18nProvider'
 
 const PLACEMENT_TYPES: Array<'rewarded' | 'interstitial' | 'banner' | 'native'> = ['rewarded', 'interstitial', 'banner', 'native']
 const IAP_ITEM_TYPES: Array<'consumable' | 'non_consumable' | 'subscription'> = ['consumable', 'non_consumable', 'subscription']
 const TRIGGER_POINTS = ['Entry', 'After first level', 'Outcome screen', 'Between sessions', 'Shop open', 'Currency depleted', 'Cosmetic moment']
-const inputClass = 'rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 placeholder:text-slate-400'
+const inputClass = 'ds-input font-medium'
+const optionKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')
 
 function pressureLevel(placements: AdPlacement[]) {
   const score = placements.reduce((sum, placement) => {
@@ -35,21 +37,23 @@ function pressureLevel(placements: AdPlacement[]) {
     const capScore = placement.frequency_cap ? Math.max(0, 3 - placement.frequency_cap) : 2
     return sum + typeScore + capScore
   }, 0)
-  if (score >= 10) return { label: 'High', color: 'text-red-700', fill: 'w-[82%]' }
-  if (score >= 5) return { label: 'Medium', color: 'text-amber-700', fill: 'w-[55%]' }
-  return { label: 'Low', color: 'text-emerald-700', fill: 'w-[25%]' }
+  if (score >= 10) return { labelKey: 'build.levels.high', color: 'text-red-700', fill: 'w-[82%]' }
+  if (score >= 5) return { labelKey: 'build.levels.medium', color: 'text-amber-700', fill: 'w-[55%]' }
+  return { labelKey: 'build.levels.low', color: 'text-emerald-700', fill: 'w-[25%]' }
 }
 
 function fairnessLevel(items: IapItem[]) {
   const limited = items.filter((item) => item.description?.toLowerCase().includes('limited')).length
-  if (limited > 1) return { label: 'Needs Review', color: 'text-amber-700', fill: 'w-[58%]' }
-  if (items.length > 0) return { label: 'Fair', color: 'text-emerald-700', fill: 'w-[72%]' }
-  return { label: 'Unset', color: 'text-slate-500', fill: 'w-[20%]' }
+  if (limited > 1) return { labelKey: 'build.levels.needsReview', color: 'text-amber-700', fill: 'w-[58%]' }
+  if (items.length > 0) return { labelKey: 'build.levels.fair', color: 'text-emerald-700', fill: 'w-[72%]' }
+  return { labelKey: 'build.levels.unset', color: 'text-slate-500', fill: 'w-[20%]' }
 }
 
 export default function BuildPage() {
   const { id: projectId } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { t, formatNumber } = useI18n()
+  const optionLabel = (group: string, value: string) => t(`build.${group}.${optionKey(value)}`)
 
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
@@ -98,7 +102,7 @@ export default function BuildPage() {
           setIapItems(await listIapItems(loadedIapConfig.id))
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load')
+        setError(err instanceof Error ? err.message : t('build.loadFailed'))
       } finally {
         setLoading(false)
       }
@@ -132,10 +136,10 @@ export default function BuildPage() {
         frequency_cap: newFrequencyCap ? parseInt(newFrequencyCap) : null,
       })
       setAdPlacements((prev) => [...prev, placement])
-      notify.success('เพิ่ม Ad Placement แล้ว')
+      notify.success(t('build.placementAdded'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add placement')
-      notify.error('เพิ่ม Ad Placement ไม่สำเร็จ ลองใหม่อีกครั้ง')
+      setError(err instanceof Error ? err.message : t('build.addPlacementFailed'))
+      notify.error(t('build.addPlacementError'))
     } finally {
       setAddingPlacement(false)
     }
@@ -146,7 +150,7 @@ export default function BuildPage() {
       await deleteAdPlacement(placementId)
       setAdPlacements((prev) => prev.filter((placement) => placement.id !== placementId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove placement')
+      setError(err instanceof Error ? err.message : t('build.removePlacementFailed'))
     }
   }
 
@@ -177,10 +181,10 @@ export default function BuildPage() {
       setNewItemName('')
       setNewItemPrice('')
       setNewItemDesc('')
-      notify.success('เพิ่ม IAP Item แล้ว')
+      notify.success(t('build.itemAdded'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add item')
-      notify.error('เพิ่ม IAP Item ไม่สำเร็จ ลองใหม่อีกครั้ง')
+      setError(err instanceof Error ? err.message : t('build.addItemFailed'))
+      notify.error(t('build.addItemError'))
     } finally {
       setAddingItem(false)
     }
@@ -191,7 +195,7 @@ export default function BuildPage() {
       await deleteIapItem(itemId)
       setIapItems((prev) => prev.filter((item) => item.id !== itemId))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove item')
+      setError(err instanceof Error ? err.message : t('build.removeItemFailed'))
     }
   }
 
@@ -214,12 +218,12 @@ export default function BuildPage() {
       })
 
       await updateProject(projectId, { current_step: 3 })
-      notify.success('บันทึกแล้ว ไปต่อหน้า Guardrail ได้เลย')
+      notify.success(t('build.savedNext'))
       navigate(`/project/${projectId}/guardrail`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to save'
+      const msg = err instanceof Error ? err.message : t('build.saveFailed')
       setError(msg)
-      notify.error('บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง')
+      notify.error(t('build.saveError'))
     } finally {
       setSaving(false)
     }
@@ -253,9 +257,9 @@ export default function BuildPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-slate-950">Monetization Builder</h1>
+          <h1 className="text-3xl font-black tracking-tight text-slate-950">{t('build.title')}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            {project?.title ? `${project.title}: ` : ''}Design ads and IAP together, then tune pressure before the guardrail check.
+            {t('build.subtitle', { title: project?.title ? `${project.title}: ` : '' })}
           </p>
         </div>
         <div className="flex rounded-lg border border-line bg-white p-1 shadow-sm">
@@ -267,7 +271,7 @@ export default function BuildPage() {
                 activePanel === panel ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-50'
               }`}
             >
-              {panel === 'iap' ? 'IAP' : panel}
+              {panel === 'iap' ? t('build.iap') : t(`build.${panel}`)}
             </button>
           ))}
         </div>
@@ -285,7 +289,7 @@ export default function BuildPage() {
             <>
               <FadeInCard index={0}>
               <Card>
-                <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">A. Revenue Mix Target</p>
+                <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">{t('build.revenueMixTarget')}</p>
                 <input
                   type="range"
                   min="0"
@@ -295,8 +299,8 @@ export default function BuildPage() {
                   className="w-full accent-primary"
                 />
                 <div className="mt-3 flex justify-between text-sm font-black text-slate-900">
-                  <span>Ads {mix}%</span>
-                  <span>IAP {100 - mix}%</span>
+                  <span>{t('build.adsPercent', { value: formatNumber(mix) })}</span>
+                  <span>{t('build.iapPercent', { value: formatNumber(100 - mix) })}</span>
                 </div>
               </Card>
               </FadeInCard>
@@ -304,15 +308,15 @@ export default function BuildPage() {
               <FadeInCard index={1}>
               <Card className="overflow-hidden p-0">
                 <div className="border-b border-line px-5 py-4">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">B. Monetization Map</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-primary">{t('build.monetizationMap')}</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[680px] text-sm">
                     <thead>
                       <tr className="border-b border-line bg-slate-50 text-left text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                        <th className="px-5 py-3">Session Stage</th>
-                        <th className="px-5 py-3">Configured Points</th>
-                        <th className="px-5 py-3 text-right">Action</th>
+                        <th className="px-5 py-3">{t('build.sessionStage')}</th>
+                        <th className="px-5 py-3">{t('build.configuredPoints')}</th>
+                        <th className="px-5 py-3 text-right">{t('common.action')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-line">
@@ -323,14 +327,14 @@ export default function BuildPage() {
                             {[...adPlacements.map((p) => p.trigger_point), ...iapItems.map((i) => i.name)]
                               .filter((value): value is string => Boolean(value))
                               .filter((value) => value.toLowerCase().includes(stage.split(' ')[0].toLowerCase()))
-                              .join(', ') || 'None yet'}
+                              .join(', ') || t('build.noneYet')}
                           </td>
                           <td className="px-5 py-4 text-right">
                             <button
                               onClick={() => setActivePanel(stage === 'Meta / Shop' ? 'iap' : 'ads')}
                               className="rounded-md border border-line px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-primary/30 hover:text-primary"
                             >
-                              Add placement
+                              {t('build.addPlacement')}
                             </button>
                           </td>
                         </tr>
@@ -346,13 +350,13 @@ export default function BuildPage() {
           {activePanel === 'ads' && (
             <FadeInCard index={0}>
             <Card>
-              <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">Ads Configuration</p>
+              <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">{t('build.adsConfig')}</p>
               <div className="mb-5 grid gap-3 md:grid-cols-2">
                 <input
                   type="text"
                   value={adNetwork}
                   onChange={(event) => setAdNetwork(event.target.value)}
-                  placeholder="Ad network, e.g. AdMob"
+                  placeholder={t('build.adNetworkPlaceholder')}
                   className={inputClass}
                 />
                 <select
@@ -360,23 +364,23 @@ export default function BuildPage() {
                   onChange={(event) => setRevenueModel(event.target.value)}
                   className={inputClass}
                 >
-                  <option value="">Revenue model</option>
-                  <option value="rewarded">Rewarded first</option>
-                  <option value="cpm">CPM</option>
-                  <option value="hybrid">Hybrid</option>
+                  <option value="">{t('build.revenueModel')}</option>
+                  <option value="rewarded">{t('build.rewardedFirst')}</option>
+                  <option value="cpm">{t('build.revenueModels.cpm')}</option>
+                  <option value="hybrid">{t('build.revenueModels.hybrid')}</option>
                 </select>
               </div>
 
               <div className="mb-5 grid gap-3 md:grid-cols-[1fr_1fr_120px_auto]">
                 <select value={newPlacementType} onChange={(event) => setNewPlacementType(event.target.value as typeof newPlacementType)} className={inputClass}>
-                  {PLACEMENT_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  {PLACEMENT_TYPES.map((type) => <option key={type} value={type}>{optionLabel('placementTypes', type)}</option>)}
                 </select>
                 <select value={newTriggerPoint} onChange={(event) => setNewTriggerPoint(event.target.value)} className={inputClass}>
-                  {TRIGGER_POINTS.map((point) => <option key={point} value={point}>{point}</option>)}
+                  {TRIGGER_POINTS.map((point) => <option key={point} value={point}>{optionLabel('triggerPoints', point)}</option>)}
                 </select>
-                <input type="number" min="1" value={newFrequencyCap} onChange={(event) => setNewFrequencyCap(event.target.value)} placeholder="Cap" className={inputClass} />
+                <input type="number" min="1" value={newFrequencyCap} onChange={(event) => setNewFrequencyCap(event.target.value)} placeholder={t('build.cap')} className={inputClass} />
                 <button onClick={handleAddPlacement} disabled={addingPlacement} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
-                  {addingPlacement ? 'Adding...' : 'Add'}
+                  {addingPlacement ? t('build.adding') : t('build.add')}
                 </button>
               </div>
 
@@ -386,17 +390,17 @@ export default function BuildPage() {
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>
                         <span className="mb-3 flex h-8 w-8 items-center justify-center rounded-md bg-white text-sm font-black text-slate-700 ring-1 ring-line">{index + 1}</span>
-                        <h3 className="font-black capitalize text-slate-950">{placement.placement_type} Ad</h3>
+                        <h3 className="font-black capitalize text-slate-950">{t('build.adTitle', { type: optionLabel('placementTypes', placement.placement_type) })}</h3>
                       </div>
                       <Badge variant={placement.placement_type === 'interstitial' ? 'yellow' : 'green'}>
-                        {placement.frequency_cap ? `Cap ${placement.frequency_cap}` : 'No cap'}
+                        {placement.frequency_cap ? t('build.capValue', { value: formatNumber(placement.frequency_cap) }) : t('build.noCap')}
                       </Badge>
                     </div>
                     <p className="rounded-md bg-white p-3 text-sm font-semibold text-slate-600 ring-1 ring-line">
-                      {placement.trigger_point ?? 'No trigger selected'}
+                      {placement.trigger_point ? optionLabel('triggerPoints', placement.trigger_point) : t('build.noTrigger')}
                     </p>
                     <button onClick={() => handleRemovePlacement(placement.id)} className="mt-4 rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
-                      Disable
+                      {t('build.disable')}
                     </button>
                   </div>
                 ))}
@@ -408,27 +412,27 @@ export default function BuildPage() {
           {activePanel === 'iap' && (
             <FadeInCard index={0}>
             <Card>
-              <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">IAP Configuration</p>
+              <p className="mb-5 text-xs font-black uppercase tracking-[0.18em] text-primary">{t('build.iapConfig')}</p>
               <div className="mb-5">
                 <select value={iapStore} onChange={(event) => setIapStore(event.target.value as typeof iapStore)} className={inputClass}>
-                  <option value="">Select store</option>
-                  <option value="google_play">Google Play</option>
-                  <option value="app_store">App Store</option>
-                  <option value="both">Both stores</option>
+                  <option value="">{t('build.selectStore')}</option>
+                  <option value="google_play">{t('build.googlePlay')}</option>
+                  <option value="app_store">{t('build.appStore')}</option>
+                  <option value="both">{t('build.bothStores')}</option>
                 </select>
               </div>
 
               <div className="mb-5 grid gap-3 md:grid-cols-[1fr_180px_120px]">
-                <input value={newItemName} onChange={(event) => setNewItemName(event.target.value)} placeholder="Item name, e.g. Energy Refill" className={inputClass} />
+                <input value={newItemName} onChange={(event) => setNewItemName(event.target.value)} placeholder={t('build.itemNamePlaceholder')} className={inputClass} />
                 <select value={newItemType} onChange={(event) => setNewItemType(event.target.value as typeof newItemType)} className={inputClass}>
-                  {IAP_ITEM_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                  {IAP_ITEM_TYPES.map((type) => <option key={type} value={type}>{optionLabel('iapItemTypes', type)}</option>)}
                 </select>
-                <input type="number" min="0" step="0.01" value={newItemPrice} onChange={(event) => setNewItemPrice(event.target.value)} placeholder="Price" className={inputClass} />
+                <input type="number" min="0" step="0.01" value={newItemPrice} onChange={(event) => setNewItemPrice(event.target.value)} placeholder={t('build.price')} className={inputClass} />
               </div>
               <div className="mb-5 grid gap-3 md:grid-cols-[1fr_auto]">
-                <input value={newItemDesc} onChange={(event) => setNewItemDesc(event.target.value)} placeholder="Clear benefit, e.g. Restore 20 energy" className={inputClass} />
+                <input value={newItemDesc} onChange={(event) => setNewItemDesc(event.target.value)} placeholder={t('build.benefitPlaceholder')} className={inputClass} />
                 <button onClick={handleAddIapItem} disabled={addingItem || !newItemName.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
-                  {addingItem ? 'Adding...' : 'Add Item'}
+                  {addingItem ? t('build.adding') : t('build.addItem')}
                 </button>
               </div>
 
@@ -442,10 +446,10 @@ export default function BuildPage() {
                       </div>
                       <Badge variant="purple">{item.item_type}</Badge>
                     </div>
-                    <p className="text-2xl font-black text-slate-950">{item.price_usd != null ? `$${item.price_usd}` : 'Free'}</p>
-                    <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">{item.description || 'No benefit text yet.'}</p>
+                    <p className="text-2xl font-black text-slate-950">{item.price_usd != null ? `$${item.price_usd}` : t('build.free')}</p>
+                    <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">{item.description || t('build.noBenefit')}</p>
                     <button onClick={() => handleRemoveIapItem(item.id)} className="mt-4 rounded-md border border-line bg-white px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
-                      Disable
+                      {t('build.disable')}
                     </button>
                   </div>
                 ))}
@@ -458,42 +462,41 @@ export default function BuildPage() {
         <aside className="space-y-4">
           <FadeInCard index={0}>
           <Card>
-            <h2 className="font-black text-slate-950">Session Flow Preview</h2>
+            <h2 className="font-black text-slate-950">{t('build.sessionFlowPreview')}</h2>
             <div className="mt-4 rounded-lg bg-slate-50 p-4 text-sm font-semibold leading-7 text-slate-600">
-              Start → Play → Outcome → Reward<br />
-              Upgrade → Next
+              {t('build.sessionFlow')}
             </div>
           </Card>
           </FadeInCard>
 
           <FadeInCard index={1}>
           <Card>
-            <h2 className="font-black text-slate-950">Quick Summary</h2>
+            <h2 className="font-black text-slate-950">{t('build.quickSummary')}</h2>
             <dl className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Rewarded Ads</dt><dd className="font-black">{adPlacements.filter((p) => p.placement_type === 'rewarded').length}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">Interstitials</dt><dd className="font-black">{adPlacements.filter((p) => p.placement_type === 'interstitial').length}</dd></div>
-              <div className="flex justify-between gap-4"><dt className="text-slate-500">IAP Items</dt><dd className="font-black">{iapItems.length}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('build.rewardedAds')}</dt><dd className="font-black">{formatNumber(adPlacements.filter((p) => p.placement_type === 'rewarded').length)}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('build.interstitials')}</dt><dd className="font-black">{formatNumber(adPlacements.filter((p) => p.placement_type === 'interstitial').length)}</dd></div>
+              <div className="flex justify-between gap-4"><dt className="text-slate-500">{t('build.iapItems')}</dt><dd className="font-black">{formatNumber(iapItems.length)}</dd></div>
             </dl>
           </Card>
           </FadeInCard>
 
           <FadeInCard index={2}>
           <Card>
-            <h2 className="font-black text-slate-950">Pressure Meter</h2>
+            <h2 className="font-black text-slate-950">{t('build.pressureMeter')}</h2>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
               <div className={`h-full rounded-full bg-accent ${pressure.fill}`} />
             </div>
-            <p className={`mt-3 text-sm font-black ${pressure.color}`}>Estimated Pressure: {pressure.label}</p>
+            <p className={`mt-3 text-sm font-black ${pressure.color}`}>{t('build.estimatedPressure', { level: t(pressure.labelKey) })}</p>
           </Card>
           </FadeInCard>
 
           <FadeInCard index={3}>
           <Card>
-            <h2 className="font-black text-slate-950">Fairness Meter</h2>
+            <h2 className="font-black text-slate-950">{t('build.fairnessMeter')}</h2>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-100">
               <div className={`h-full rounded-full bg-primary ${fairness.fill}`} />
             </div>
-            <p className={`mt-3 text-sm font-black ${fairness.color}`}>Fairness Level: {fairness.label}</p>
+            <p className={`mt-3 text-sm font-black ${fairness.color}`}>{t('build.fairnessLevel', { level: t(fairness.labelKey) })}</p>
           </Card>
           </FadeInCard>
 
@@ -503,10 +506,10 @@ export default function BuildPage() {
 
           <div className="sticky bottom-4 flex gap-3 rounded-lg border border-line bg-white p-3 shadow-lg">
             <button onClick={() => navigate(`/project/${projectId}/setup`)} className="rounded-lg border border-line px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
-              Back
+              {t('build.back')}
             </button>
             <button onClick={handleNext} disabled={saving} className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white hover:bg-primary-light disabled:opacity-50">
-              {saving ? 'Saving...' : 'Continue to Guardrail'}
+              {saving ? t('common.saving') : t('build.continueGuardrail')}
             </button>
           </div>
         </aside>

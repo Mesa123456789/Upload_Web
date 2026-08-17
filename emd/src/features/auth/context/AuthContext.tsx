@@ -2,6 +2,36 @@ import { createContext, useEffect, useRef, useState } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../../../lib/supabase'
 import type { Profile } from '../../../lib/database.types'
+
+const previewAuth = import.meta.env.VITE_PREVIEW_AUTH === 'true'
+
+const previewProfile: Profile = {
+  id: 'preview-instructor',
+  email: 'preview@emd.local',
+  display_name: 'Pimponput Talubnga',
+  role: 'instructor',
+  contact_info: null,
+  student_code: '662110157',
+  major: null,
+  year: null,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+}
+
+const previewSession = {
+  access_token: 'preview-access-token',
+  refresh_token: 'preview-refresh-token',
+  expires_in: 3600,
+  token_type: 'bearer',
+  user: {
+    id: previewProfile.id,
+    email: previewProfile.email,
+    app_metadata: {},
+    user_metadata: { display_name: previewProfile.display_name },
+    aud: 'authenticated',
+    created_at: previewProfile.created_at,
+  },
+} as Session
  
 interface AuthContextValue {
   user: User | null
@@ -12,12 +42,34 @@ interface AuthContextValue {
 }
  
 export const AuthContext = createContext<AuthContextValue | null>(null)
+
+function PreviewAuthProvider({ children }: { children: React.ReactNode }) {
+  const [profile, setProfile] = useState<Profile | null>(previewProfile)
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user: previewSession.user,
+        session: previewSession,
+        profile,
+        loading: false,
+        setProfile,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  )
+}
  
 // เวลาสูงสุดที่รอ getSession() — กันค้างตลอดไปถ้าเจอ deadlock ซ้ำใน edge case อื่น
 // (เป็นตาข่ายนิรภัยเสริม ไม่ใช่ทางแก้หลัก — ทางแก้หลักคือแยก fetchProfile ออกแล้ว)
 const SESSION_TIMEOUT_MS = 8000
  
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  if (previewAuth) {
+    return <PreviewAuthProvider>{children}</PreviewAuthProvider>
+  }
+
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)

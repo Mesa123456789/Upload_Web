@@ -1,16 +1,32 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Bot } from 'lucide-react'
+import { useI18n } from '../../../../i18n/I18nProvider'
+import { notify } from '../../../../shared/lib/toast'
 import { useChat } from '../../context/ChatContext'
 import { sendChatMessage, summarizeChat, saveSuggestions, type ChatMessage } from '../../services/chat.service'
 
-// ── Avatar AI (วงกลม Himawari blue + หน้ายิ้ม) ──
-function AiAvatar({ size = 32 }: { size?: number }) {
+// Three bouncing dots shown inside the AI bubble while waiting for the first
+// streamed token (after the message is sent, before any text has arrived).
+function ThinkingDots() {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="9" fill="#5AAEDB" />
-      <circle cx="12.5" cy="15" r="1.6" fill="white" />
-      <circle cx="19.5" cy="15" r="1.6" fill="white" />
-      <path d="M12 20 Q16 22.5 20 20" stroke="white" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+    <span style={styles.thinkingDots} aria-label="AI is thinking">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          style={styles.thinkingDot}
+          animate={{ y: [0, -5, 0], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+        />
+      ))}
+    </span>
+  )
+}
+
+function ResizeGrip() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+      <path d="M12 2L2 12M12 6L6 12M12 10L10 12" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
@@ -19,7 +35,48 @@ interface ChatAssistantProps {
   projectId: string
 }
 
+// ── Floating panel geometry ──
+// The panel is draggable/resizable, so position and size live in plain
+// pixel state instead of a fixed corner anchor. These helpers keep it inside
+// the viewport at all times (initial placement, drag, and resize).
+const PANEL_DEFAULT_WIDTH = 360
+const PANEL_DEFAULT_HEIGHT = 520
+const PANEL_MIN_WIDTH = 300
+const PANEL_MIN_HEIGHT = 380
+const PANEL_MAX_WIDTH = 560
+const PANEL_MAX_HEIGHT = 720
+const VIEWPORT_MARGIN = 16
+// Vertical clearance from the bottom of the viewport for the default panel
+// position — keeps it clear of the FAB and the sticky bottom action bar
+// ("Back" / "Continue to ...") that Setup/Build/Guardrail/Output all have.
+const FAB_CLEARANCE = 90
+
+function clampSize(width: number, height: number) {
+  const maxWidth = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2))
+  const maxHeight = Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, window.innerHeight - VIEWPORT_MARGIN * 2))
+  return {
+    width: Math.min(Math.max(width, PANEL_MIN_WIDTH), maxWidth),
+    height: Math.min(Math.max(height, PANEL_MIN_HEIGHT), maxHeight),
+  }
+}
+
+function clampPosition(x: number, y: number, width: number, height: number) {
+  const maxX = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN)
+  const maxY = Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)
+  return {
+    x: Math.min(Math.max(x, VIEWPORT_MARGIN), maxX),
+    y: Math.min(Math.max(y, VIEWPORT_MARGIN), maxY),
+  }
+}
+
+function getDefaultPanelPosition(width: number, height: number) {
+  const x = Math.max(VIEWPORT_MARGIN, (window.innerWidth - width) / 2)
+  const y = Math.max(VIEWPORT_MARGIN, window.innerHeight - height - FAB_CLEARANCE)
+  return { x, y }
+}
+
 export default function ChatAssistant({ projectId }: ChatAssistantProps) {
+  const { t, language } = useI18n()
   const {
     messages,
     addMessage,
@@ -39,6 +96,16 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
 
+  // Panel position/size — kept in this component's state (not context, not
+  // localStorage) so it persists across open/close toggles for as long as
+  // ChatAssistant stays mounted (it never unmounts within the project flow),
+  // without persisting across page reloads.
+  const [panelSize, setPanelSize] = useState(() => clampSize(PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_HEIGHT))
+  const [panelPos, setPanelPos] = useState(() => {
+    const size = clampSize(PANEL_DEFAULT_WIDTH, PANEL_DEFAULT_HEIGHT)
+    return getDefaultPanelPosition(size.width, size.height)
+  })
+
   const isDevMode = import.meta.env.DEV
 
   const hasAiReplied = messages.some((m) => m.role === 'model' && m.text !== '')
@@ -48,6 +115,20 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const [satisfyDismissed, setSatisfyDismissed] = useState(false)
+
+  // The header avatar shares layoutId="ai-avatar" with the FAB only for the
+  // brief open transition (so it visibly flies from the FAB to the header).
+  // Once that settles, the layoutId is dropped — otherwise framer-motion
+  // keeps tracking the avatar's layout and animates every position change,
+  // which makes it visibly lag behind the panel while dragging.
+  const [justOpened, setJustOpened] = useState(false)
+
+  useEffect(() => {
+    if (!isChatOpen) return
+    setJustOpened(true)
+    const timer = setTimeout(() => setJustOpened(false), 260)
+    return () => clearTimeout(timer)
+  }, [isChatOpen])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -80,6 +161,7 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
         history: messages,
         liveDraft,
         providerOverride: selectedProvider,
+        language,
         onChunk: (fullText) => {
           updateMessage(placeholderId, fullText)
         },
@@ -88,7 +170,7 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
       updateMessage(placeholderId, reply)
       setLastProvider(provider)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด'
+      const msg = err instanceof Error ? err.message : t('chat.errorGeneric')
       setError(msg)
       removeMessage(placeholderId)
     } finally {
@@ -99,7 +181,7 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
   async function handleSummarize() {
     if (isSummarizing || messages.length === 0) return
     if (!projectId) {
-      setError('ต้องมีโปรเจกต์จริงก่อนถึงจะบันทึกคำแนะนำได้ (กด Continue ในหน้า Setup ก่อน)')
+      setError(t('chat.projectRequired'))
       return
     }
 
@@ -109,18 +191,20 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
       const { suggestions, provider } = await summarizeChat({
         history: messages,
         providerOverride: selectedProvider,
+        language,
       })
       addSuggestions(suggestions)
       setLastProvider(provider)
       if (suggestions.length > 0) {
+        notify.aiSuggestion(t('chat.summarizeSuccess'))
         try {
           await saveSuggestions({ projectId, suggestions, model: provider })
         } catch (saveErr) {
-          console.error('บันทึกคำแนะนำลง DB ไม่สำเร็จ:', saveErr)
+          console.error('Failed to save suggestions to DB:', saveErr)
         }
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'สรุปไม่ได้'
+      const msg = err instanceof Error ? err.message : t('chat.summarizeFailed')
       setError(msg)
     } finally {
       setIsSummarizing(false)
@@ -134,67 +218,136 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
     }
   }
 
+  // Drag the panel from its header. Ignores drags started on the close
+  // button so it stays clickable.
+  function handleHeaderPointerDown(e: React.PointerEvent) {
+    if ((e.target as HTMLElement).closest('button')) return
+    const startX = e.clientX
+    const startY = e.clientY
+    const originX = panelPos.x
+    const originY = panelPos.y
+
+    function handleMove(ev: PointerEvent) {
+      const nextX = originX + (ev.clientX - startX)
+      const nextY = originY + (ev.clientY - startY)
+      setPanelPos(clampPosition(nextX, nextY, panelSize.width, panelSize.height))
+    }
+    function handleUp() {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+    }
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+  }
+
+  // Resize from the bottom-right grip handle.
+  function handleResizePointerDown(e: React.PointerEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startY = e.clientY
+    const originWidth = panelSize.width
+    const originHeight = panelSize.height
+
+    function handleMove(ev: PointerEvent) {
+      const nextWidth = originWidth + (ev.clientX - startX)
+      const nextHeight = originHeight + (ev.clientY - startY)
+      const clampedSize = clampSize(nextWidth, nextHeight)
+      setPanelSize(clampedSize)
+      setPanelPos((prev) => clampPosition(prev.x, prev.y, clampedSize.width, clampedSize.height))
+    }
+    function handleUp() {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+    }
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+  }
+
   return (
-    <AnimatePresence mode="wait">
+    // No mode="wait" here on purpose: the FAB's exit and the panel's enter
+    // need to briefly overlap in the DOM for the shared layoutId="ai-avatar"
+    // transition to bridge between them (avatar flies FAB -> header). The
+    // panel's own content is then delayed via its transition below so it
+    // visibly expands only after the avatar has (almost) arrived.
+    <AnimatePresence>
       {!isChatOpen ? (
         <motion.button
           key="fab"
           layoutId="ai-avatar"
+          className="no-print"
           onClick={() => setChatOpen(true)}
           style={styles.fab}
           initial={{ opacity: 0, scale: 0.7 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.7 }}
           transition={{ duration: 0.2 }}
-          aria-label="เปิด AI Assistant"
+          whileHover={{
+            scale: 1.08,
+            boxShadow: '0 12px 28px rgba(17,24,39,0.36), 0 4px 10px rgba(17,24,39,0.2)',
+            transition: { duration: 0.15 },
+          }}
+          whileTap={{ scale: 0.96 }}
+          aria-label={t('chat.openAssistant')}
         >
-          <AiAvatar size={28} />
+          <Bot size={28} color="#ffffff" strokeWidth={2.25} />
         </motion.button>
       ) : (
         <motion.div
           key="panel"
-          style={styles.panel}
-          initial={{ opacity: 0, y: 32, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 32, scale: 0.96 }}
-          transition={{ duration: 0.22 }}
+          className="no-print"
+          style={{
+            ...styles.panel,
+            left: panelPos.x,
+            top: panelPos.y,
+            width: panelSize.width,
+            height: panelSize.height,
+          }}
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.96 }}
+          transition={{ duration: 0.22, delay: 0.15 }}
         >
-          {/* Header */}
-          <div style={styles.header}>
+          {/* Header — also the drag handle */}
+          <div style={styles.header} onPointerDown={handleHeaderPointerDown}>
             <div style={styles.headerLeft}>
-              <motion.div layoutId="ai-avatar" style={styles.avatarRing}>
-                <AiAvatar size={22} />
+              <motion.div
+                layoutId={justOpened ? 'ai-avatar' : undefined}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                style={styles.avatarRing}
+              >
+                <Bot size={20} color="#f97316" strokeWidth={2.25} />
               </motion.div>
               <div>
                 <div style={styles.headerTitleRow}>
-                  <span style={styles.headerTitle}>AI Assistant</span>
+                  <span style={styles.headerTitle}>{t('chat.title')}</span>
                   {lastProvider && (
                     <span style={styles.providerBadge}>{lastProvider}</span>
                   )}
                 </div>
-                <div style={styles.headerSubtitle}>ที่ปรึกษา GDD เฉพาะ</div>
+                <div style={styles.headerSubtitle}>{t('chat.subtitle')}</div>
               </div>
             </div>
-            <button onClick={() => setChatOpen(false)} style={styles.closeBtn} aria-label="ปิด">✕</button>
+            <button onClick={() => setChatOpen(false)} style={styles.closeBtn} aria-label={t('chat.close')}>×</button>
           </div>
 
           {/* Dev switcher */}
           {isDevMode && (
             <div style={styles.devSwitcher}>
-              <span style={styles.devLabel}>⚙️ DEV</span>
+              <span style={styles.devLabel}>{t('chat.devMode')}</span>
               <select
                 value={selectedProvider ?? ''}
                 onChange={(e) => setSelectedProvider(e.target.value || null)}
                 style={styles.devSelect}
               >
-                <option value="">Default (.env)</option>
+                <option value="">{t('chat.defaultProvider')}</option>
                 <option value="gemini">Gemini</option>
                 <option value="owl-alpha">Owl Alpha</option>
               </select>
             </div>
           )}
 
-          {/* พื้นที่ข้อความ */}
+          {/* Message list */}
           <div ref={scrollRef} style={styles.messages}>
             {messages.length === 0 && (
               <motion.div
@@ -203,61 +356,61 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25, delay: 0.18 }}
               >
-                สวัสดี! ถามอะไรเกี่ยวกับการออกแบบเกมหรือ monetization ได้เลย
-                เราจะช่วยแนะนำ ไม่ทำแทนนะ
+                {t('chat.empty')}
               </motion.div>
             )}
 
-            {messages.map((m, i) => (
-              <div
-                key={m.id ?? i}
-                style={{
-                  ...styles.bubble,
-                  ...(m.role === 'user' ? styles.bubbleUser : styles.bubbleAi),
-                }}
-              >
-                {m.text}
-                {/* cursor กระพริบเฉพาะ placeholder ล่าสุดที่กำลัง stream และมี text แล้ว */}
-                {isSending &&
-                  i === messages.length - 1 &&
-                  m.role === 'model' &&
-                  m.text !== '' && (
-                    <span style={styles.cursor}>▋</span>
+            {messages.map((m, i) => {
+              const isLast = i === messages.length - 1
+              // Placeholder model message added the instant handleSend fires,
+              // before the first streamed token arrives — show thinking dots
+              // here instead of an empty bubble.
+              const isThinking = m.role === 'model' && m.text === '' && isSending && isLast
+              return (
+                <div
+                  key={m.id ?? i}
+                  style={{
+                    ...styles.bubble,
+                    ...(m.role === 'user' ? styles.bubbleUser : styles.bubbleAi),
+                  }}
+                >
+                  {isThinking ? (
+                    <ThinkingDots />
+                  ) : (
+                    <>
+                      {m.text}
+                      {/* Blinking cursor while this placeholder is still streaming in text */}
+                      {isSending && isLast && m.role === 'model' && m.text !== '' && (
+                        <span style={styles.cursor}>▌</span>
+                      )}
+                    </>
                   )}
-              </div>
-            ))}
-
-            {/* typing dots — โชว์เฉพาะตอน isSending แต่ยังไม่มี placeholder ใน messages */}
-            {isSending && !messages.some((m) => m.role === 'model' && m.id?.startsWith('msg_')) && (
-              <div style={{ ...styles.bubble, ...styles.bubbleAi, ...styles.typingBubble }}>
-                <span style={styles.typingDot} />
-                <span style={styles.typingDot} />
-                <span style={styles.typingDot} />
-              </div>
-            )}
+                </div>
+              )
+            })}
           </div>
 
           {/* error */}
           {error && <div style={styles.error}>{error}</div>}
 
-          {/* แจ้งเตือน — คุยแล้วแต่ยังไม่มี project จริง */}
+          {/* Hint shown after chatting before a real project exists */}
           {hasAiReplied && !hasProjectId && (
             <div style={styles.hint}>
-              💡 บันทึก/สรุปคำแนะนำได้หลังกด "Continue" เพื่อสร้างโปรเจกต์ก่อน
+              {t('chat.saveHint')}
             </div>
           )}
 
           {/* toast hint */}
           {showHint && hasProjectId && !canSummarize && (
             <div style={{ ...styles.hint, ...styles.hintToast }}>
-              💡 ลองถามเรื่อง genre, core loop, monetization ฯลฯ ก่อน ปุ่มสรุปจะขึ้นเมื่อมีคำแนะนำให้เก็บ
+              {t('chat.moreContextHint')}
             </div>
           )}
 
-          {/* ปุ่มสรุป */}
+          {/* Summarize card */}
           {canSummarize && !satisfyDismissed && (
             <div style={styles.satisfyCard}>
-              <p style={styles.satisfyText}>พอใจกับคำแนะนำแล้วหรือยัง?</p>
+              <p style={styles.satisfyText}>{t('chat.satisfiedQuestion')}</p>
               <div style={styles.satisfyBtnRow}>
                 <button
                   onClick={handleSummarize}
@@ -267,20 +420,20 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
                     ...(isSummarizing ? styles.btnDisabled : {}),
                   }}
                 >
-                  {isSummarizing ? 'กำลังสรุป…' : '✅ พอแล้ว สรุปเลย'}
+                  {isSummarizing ? t('chat.summarizing') : t('chat.summarizeNow')}
                 </button>
                 <button
                   onClick={() => setSatisfyDismissed(true)}
                   disabled={isSummarizing}
                   style={styles.satisfyBtnGhost}
                 >
-                  ยังก่อน ขอคุยต่อ
+                  {t('chat.keepChatting')}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ช่องพิมพ์ */}
+          {/* Input row */}
           <motion.div
             style={styles.inputRow}
             initial={{ opacity: 0, y: 12 }}
@@ -291,7 +444,7 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="พิมพ์คำถาม…"
+              placeholder={t('chat.placeholder')}
               rows={1}
               style={styles.textarea}
             />
@@ -303,9 +456,18 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
                 ...(isSending || !input.trim() ? styles.btnDisabled : {}),
               }}
             >
-              ส่ง
+              {t('chat.send')}
             </button>
           </motion.div>
+
+          {/* Resize grip */}
+          <div
+            onPointerDown={handleResizePointerDown}
+            style={styles.resizeHandle}
+            aria-hidden="true"
+          >
+            <ResizeGrip />
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
@@ -313,6 +475,12 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
 }
 
 // ── Scoring ──
+// Note: TOPIC_KEYWORDS/JUDGMENT_PATTERNS used to hold Thai text that had been
+// saved with the wrong encoding (UTF-8 misread as Windows-1252, then saved
+// back as UTF-8), turning them into mojibake that could never match real
+// Thai text — countJudgmentPatterns() returned 0 almost always as a result.
+// Fixed to the correct Thai text, with English entries added to
+// JUDGMENT_PATTERNS so it still works when the assistant replies in EN.
 const TOPIC_KEYWORDS = [
   'genre', 'แนวเกม', 'platform', 'แพลตฟอร์ม', 'target audience', 'กลุ่มเป้าหมาย',
   'core loop', 'core mechanic', 'กลไก', 'session', 'เซสชัน',
@@ -323,8 +491,14 @@ const TOPIC_KEYWORDS = [
 ]
 
 const JUDGMENT_PATTERNS = [
-  'ยังไม่ระบุ', 'ยังไม่มี', 'ยังไม่ได้', 'ควรเพิ่ม', 'ควรเลือก', 'ควรปรับ',
+  // Thai
+  'ยังไม่ระบุ', 'ยังไม่มี', 'ยังไม่ได้', 'ควรเพิ่ม', 'ควรเลือก', 'ควรปรับ', 'ควรจะ', 'ไม่ควร',
+  'แนะนำให้', 'ลองปรับ', 'น่าจะดีกว่า',
   'แพงเกินไป', 'น้อยไป', 'มากไป', 'อาจจะแพง', 'อาจจะน้อย', 'เสี่ยงต่อ', 'ขาดหาย',
+  // English — needed since the assistant can now reply in EN (AI response language feature)
+  'not specified', 'not yet', "doesn't have", 'should add', 'should choose', 'should adjust',
+  'recommend', 'suggest', 'consider', 'too expensive', 'too low', 'too high',
+  'might be too', 'risk of', 'missing',
 ]
 
 const SUMMARIZE_SCORE_THRESHOLD = 2
@@ -353,35 +527,40 @@ function scoreForSummarize(messages: ChatMessage[]): number {
 }
 
 // ── Styles ──
+// Flat colors only (no gradients), matching the rest of the app's dashboard
+// design system. Brand primary (#f97316, matches --color-primary in
+// index.css) is used as the AI accent instead of the old pastel blue, since
+// the dashboard's own "Integrated AI" bento card already uses orange for AI
+// branding — this keeps the assistant's identity consistent across the app.
 const styles: Record<string, React.CSSProperties> = {
   fab: {
+    // Bottom-center, hugging the viewport edge. The sticky bottom action bar
+    // that Setup/Build/Guardrail/Output render ("Back" / "Continue to ...")
+    // lives inside the right-hand <aside> column, not full width, so a
+    // horizontally-centered FAB clears it on normal/desktop widths without
+    // needing a large vertical offset.
     position: 'fixed',
     bottom: 24,
-    right: 24,
+    left: 'calc(50% - 28px)',
     width: 56,
     height: 56,
     borderRadius: '50%',
-    border: '1.5px solid #B8DCF2',
-    background: '#EAF4FC',
+    border: 'none',
+    background: '#f97316',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(90,174,219,0.25)',
+    boxShadow: '0 8px 20px rgba(17,24,39,0.28), 0 2px 6px rgba(17,24,39,0.14)',
     zIndex: 1000,
   },
   panel: {
+    // left/top/width/height are set inline from panelPos/panelSize state.
     position: 'fixed',
-    bottom: 24,
-    right: 24,
-    width: 360,
-    maxWidth: 'calc(100vw - 48px)',
-    height: 520,
-    maxHeight: 'calc(100vh - 48px)',
-    background: '#fff',
+    background: '#ffffff',
     borderRadius: 16,
-    border: '1px solid #DCEDF8',
-    boxShadow: '0 8px 24px rgba(90,174,219,0.22)',
+    border: '1.5px solid #e5e7eb',
+    boxShadow: '0 24px 60px rgba(17,24,39,0.22), 0 8px 20px rgba(17,24,39,0.12)',
     display: 'flex',
     flexDirection: 'column',
     zIndex: 1000,
@@ -392,7 +571,10 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '12px 16px',
-    background: 'linear-gradient(180deg, #EAF4FC, #DCEDF8)',
+    background: '#f97316',
+    cursor: 'grab',
+    touchAction: 'none',
+    flexShrink: 0,
   },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
   avatarRing: {
@@ -407,15 +589,15 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   headerTitleRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  headerTitle: { fontWeight: 600, fontSize: 15, color: '#1A4A66' },
-  headerSubtitle: { fontSize: 11, color: '#5C8FAD' },
+  headerTitle: { fontWeight: 700, fontSize: 15, color: '#ffffff' },
+  headerSubtitle: { fontSize: 11, color: 'rgba(255,255,255,0.85)' },
   providerBadge: {
     fontSize: 10,
     fontWeight: 700,
     padding: '2px 8px',
     borderRadius: 10,
-    background: 'rgba(90,174,219,0.18)',
-    color: '#1A4A66',
+    background: 'rgba(255,255,255,0.25)',
+    color: '#ffffff',
   },
   devSwitcher: {
     display: 'flex',
@@ -424,6 +606,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 16px',
     background: '#fef3c7',
     borderBottom: '1px solid #fde68a',
+    flexShrink: 0,
   },
   devLabel: { fontSize: 11, fontWeight: 700, color: '#92400e' },
   devSelect: {
@@ -438,8 +621,9 @@ const styles: Record<string, React.CSSProperties> = {
   closeBtn: {
     background: 'transparent',
     border: 'none',
-    color: '#5C8FAD',
-    fontSize: 16,
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 18,
+    lineHeight: 1,
     cursor: 'pointer',
   },
   messages: {
@@ -468,37 +652,36 @@ const styles: Record<string, React.CSSProperties> = {
   },
   bubbleUser: {
     alignSelf: 'flex-end',
-    background: '#5AAEDB',
+    background: '#f97316',
     color: '#fff',
     borderBottomRightRadius: 4,
   },
   bubbleAi: {
     alignSelf: 'flex-start',
-    background: '#F0F7FC',
-    color: '#1A4A66',
+    background: '#f1f5f9',
+    color: '#1e293b',
     borderBottomLeftRadius: 4,
   },
-  typingBubble: {
-    display: 'flex',
+  thinkingDots: {
+    display: 'inline-flex',
     alignItems: 'center',
-    gap: 4,
-    padding: '10px 14px',
+    gap: 5,
+    padding: '4px 2px',
+  },
+  thinkingDot: {
+    display: 'inline-block',
+    width: 7,
+    height: 7,
+    borderRadius: '50%',
+    background: '#f97316',
   },
   cursor: {
     display: 'inline-block',
     animation: 'blink 0.8s step-end infinite',
-    color: '#5AAEDB',
+    color: '#f97316',
     fontWeight: 700,
     marginLeft: 1,
     lineHeight: 1,
-  },
-  typingDot: {
-    display: 'inline-block',
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: '#5AAEDB',
-    animation: 'bounce 1s infinite',
   },
   error: {
     margin: '0 12px 8px',
@@ -511,54 +694,60 @@ const styles: Record<string, React.CSSProperties> = {
   hint: {
     margin: '0 12px 8px',
     padding: '7px 12px',
-    background: '#EAF4FC',
-    color: '#1A4A66',
+    background: '#f1f5f9',
+    color: '#334155',
     borderRadius: 8,
     fontSize: 12,
   },
   hintToast: {
-    background: '#FFF7ED',
-    color: '#92400E',
-    border: '1px solid #FDE68A',
+    background: '#fff7ed',
+    color: '#9a3412',
+    border: '1px solid #fdba74',
   },
   satisfyCard: {
     margin: '0 12px 8px',
     padding: '12px',
-    background: '#F0F7FC',
-    border: '1px solid #DCEDF8',
+    background: '#fff7ed',
+    border: '1px solid #fdba74',
     borderRadius: 10,
   },
   satisfyText: {
     fontSize: 13,
     fontWeight: 600,
-    color: '#1A4A66',
+    color: '#9a3412',
     marginBottom: 8,
     textAlign: 'center' as const,
   },
   satisfyBtnRow: {
     display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
   },
   satisfyBtnPrimary: {
-    flex: 1,
-    padding: '8px 12px',
-    background: '#5AAEDB',
+    flex: '0 1 auto',
+    padding: '8px 14px',
+    background: '#f97316',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 600,
+    whiteSpace: 'normal',
+    textAlign: 'center' as const,
     cursor: 'pointer',
   },
   satisfyBtnGhost: {
-    flex: 1,
-    padding: '8px 12px',
+    flex: '0 1 auto',
+    padding: '8px 14px',
     background: 'transparent',
-    color: '#5C8FAD',
-    border: '1px solid #B8DCF2',
+    color: '#c2410c',
+    border: '1px solid #fdba74',
     borderRadius: 8,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 600,
+    whiteSpace: 'normal',
+    textAlign: 'center' as const,
     cursor: 'pointer',
   },
   btnDisabled: {
@@ -569,28 +758,41 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: 8,
     padding: '10px 12px 14px',
-    borderTop: '1px solid #DCEDF8',
+    borderTop: '1px solid #e5e7eb',
+    flexShrink: 0,
   },
   textarea: {
     flex: 1,
     padding: '8px 10px',
     borderRadius: 8,
-    border: '1px solid #B8DCF2',
+    border: '1px solid #e5e7eb',
     fontSize: 14,
     resize: 'none' as const,
     outline: 'none',
     fontFamily: 'inherit',
     lineHeight: 1.5,
-    color: '#1A4A66',
+    color: '#1e293b',
   },
   sendBtn: {
     padding: '8px 14px',
     borderRadius: 8,
     border: 'none',
-    background: '#5AAEDB',
+    background: '#f97316',
     color: '#fff',
     fontWeight: 600,
     fontSize: 14,
     cursor: 'pointer',
+  },
+  resizeHandle: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 18,
+    height: 18,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'nwse-resize',
+    touchAction: 'none',
   },
 }

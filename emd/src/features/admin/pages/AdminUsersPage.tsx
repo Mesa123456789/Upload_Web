@@ -32,6 +32,7 @@ export default function AdminUsersPage() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
 
   function load() {
+    setError(null)
     setLoading(true)
     listUsers()
       .then(setUsers)
@@ -43,11 +44,13 @@ export default function AdminUsersPage() {
 
   async function toggleRole(target: UserWithRoles, role: AppRole) {
     if (!user) return
+    if (target.id === user.id) return
     const hasRole = target.extraRoles.includes(role)
     const confirmMessage = hasRole ? t('adminUsers.confirmRevoke') : t('adminUsers.confirmGrant')
     if (!window.confirm(confirmMessage)) return
 
     setPendingUserId(target.id)
+    setError(null)
     try {
       if (hasRole) {
         await revokeRole(target.id, role)
@@ -91,6 +94,7 @@ export default function AdminUsersPage() {
             {users.map((row) => {
               const isPending = pendingUserId === row.id
               const isAdmin = row.extraRoles.includes('admin')
+              const isSelf = row.id === user?.id
               return (
                 <tr key={row.id} className="border-b border-[#e5e7eb] last:border-0">
                   <td className="px-6 py-4 font-semibold text-slate-800">{row.display_name ?? '—'}</td>
@@ -112,7 +116,7 @@ export default function AdminUsersPage() {
                   <td className="px-6 py-4 text-right">
                     <button
                       type="button"
-                      disabled={isPending}
+                      disabled={isPending || isSelf}
                       onClick={() => toggleRole(row, 'admin')}
                       className="rounded-full border border-[#F48E2E]/45 px-3 py-1.5 text-xs font-bold text-[#7a3414] transition hover:bg-[#F48E2E]/10 disabled:opacity-40"
                     >

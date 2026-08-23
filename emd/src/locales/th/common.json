@@ -282,12 +282,35 @@
     "edit": "แก้ไข",
     "save": "บันทึก",
     "cancel": "ยกเลิก",
-    "editFailed": "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"
+    "editFailed": "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "addRole": "เพิ่ม role",
+    "confirmRevokeRole": "ยืนยันถอน role นี้จาก user คนนี้?"
+  },
+  "adminRoles": {
+    "title": "จัดการ Role",
+    "subtitle": "ดูรายชื่อ role ทั้งหมด และสร้าง role ใหม่",
+    "name": "ชื่อ (name)",
+    "namePlaceholder": "เช่น mentor, reviewer",
+    "label": "ป้ายชื่อ (label)",
+    "labelPlaceholder": "ชื่อที่แสดงในระบบ",
+    "description": "คำอธิบาย",
+    "descriptionPlaceholder": "ไม่บังคับ",
+    "builtin": "Built-in",
+    "create": "สร้าง Role",
+    "delete": "ลบ",
+    "empty": "ยังไม่มี role เสริมในระบบ",
+    "loadFailed": "โหลดรายชื่อ role ไม่สำเร็จ",
+    "createFailed": "สร้าง role ไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "deleteFailed": "ลบ role ไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "confirmDelete": "ยืนยันลบ role นี้? (user ที่ถือ role นี้อยู่ต้องถูกถอนก่อน)",
+    "invalidName": "ชื่อ role ต้องเป็นตัวพิมพ์เล็ก a-z, 0-9, _ เท่านั้น ความยาว 2-32 ตัวอักษร และขึ้นต้นด้วยตัวอักษร",
+    "nameTaken": "มีชื่อ role นี้อยู่แล้ว"
   },
   "adminLayout": {
     "title": "Admin Panel",
     "dashboard": "แดชบอร์ด",
     "users": "ผู้ใช้",
+    "roles": "Roles",
     "backToApp": "กลับหน้าหลัก"
   },
   "projects": {

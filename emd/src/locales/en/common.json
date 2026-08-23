@@ -282,12 +282,35 @@
     "edit": "Edit",
     "save": "Save",
     "cancel": "Cancel",
-    "editFailed": "Save failed, try again"
+    "editFailed": "Save failed, try again",
+    "addRole": "Add role",
+    "confirmRevokeRole": "Revoke this role from this user?"
+  },
+  "adminRoles": {
+    "title": "Manage Roles",
+    "subtitle": "View every role and create new ones",
+    "name": "Name",
+    "namePlaceholder": "e.g. mentor, reviewer",
+    "label": "Label",
+    "labelPlaceholder": "Display name",
+    "description": "Description",
+    "descriptionPlaceholder": "Optional",
+    "builtin": "Built-in",
+    "create": "Create role",
+    "delete": "Delete",
+    "empty": "No extra roles yet",
+    "loadFailed": "Failed to load roles",
+    "createFailed": "Failed to create role, try again",
+    "deleteFailed": "Failed to delete role, try again",
+    "confirmDelete": "Delete this role? (Anyone holding it must be revoked first)",
+    "invalidName": "Role name must be lowercase a-z, 0-9, _ only, 2-32 characters, starting with a letter",
+    "nameTaken": "That role name is already taken"
   },
   "adminLayout": {
     "title": "Admin Panel",
     "dashboard": "Dashboard",
     "users": "Users",
+    "roles": "Roles",
     "backToApp": "Back to app"
   },
   "projects": {

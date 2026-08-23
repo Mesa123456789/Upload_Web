@@ -15,7 +15,8 @@
     "projects": "โปรเจกต์",
     "students": "นักศึกษา",
     "profile": "โปรไฟล์",
-    "openProfile": "เปิดโปรไฟล์"
+    "openProfile": "เปิดโปรไฟล์",
+    "admin": "จัดการระบบ"
   },
   "roles": {
     "student": "นักศึกษา",
@@ -236,6 +237,34 @@
     "projectCount": "{{projects}} โปรเจกต์ใน {{courses}} รายวิชา",
     "projectCount_other": "{{projects}} โปรเจกต์ใน {{courses}} รายวิชา",
     "emptyProjects": "ไม่พบโปรเจกต์ของนักศึกษาคนนี้"
+  },
+  "adminDashboard": {
+    "title": "แดชบอร์ดผู้ดูแลระบบ",
+    "subtitle": "ภาพรวมจำนวนผู้ใช้ทั้งหมดในระบบ",
+    "totalUsers": "ผู้ใช้ทั้งหมด",
+    "students": "นักศึกษา",
+    "instructors": "ผู้สอน",
+    "admins": "ผู้ดูแลระบบ",
+    "tas": "ผู้ช่วยสอน",
+    "loadFailed": "โหลดข้อมูลสถิติไม่สำเร็จ"
+  },
+  "adminUsers": {
+    "title": "จัดการผู้ใช้",
+    "subtitle": "ดูรายชื่อผู้ใช้ทั้งหมด และมอบ/ถอนสิทธิ์ role",
+    "email": "อีเมล",
+    "name": "ชื่อ",
+    "primaryRole": "Role หลัก",
+    "extraRoles": "Role เสริม",
+    "none": "ไม่มี",
+    "grantAdmin": "มอบสิทธิ์ Admin",
+    "revokeAdmin": "ถอนสิทธิ์ Admin",
+    "grantTa": "มอบสิทธิ์ TA",
+    "revokeTa": "ถอนสิทธิ์ TA",
+    "empty": "ยังไม่มีผู้ใช้ในระบบ",
+    "loadFailed": "โหลดรายชื่อผู้ใช้ไม่สำเร็จ",
+    "confirmGrant": "ยืนยันมอบสิทธิ์นี้ให้ผู้ใช้คนนี้?",
+    "confirmRevoke": "ยืนยันถอนสิทธิ์นี้จากผู้ใช้คนนี้?",
+    "actionFailed": "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง"
   },
   "projects": {
     "myProjects": "โปรเจกต์ของฉัน",

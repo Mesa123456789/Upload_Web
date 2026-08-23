@@ -400,6 +400,38 @@ export interface Database {
           }
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          user_id: string
+          role: 'admin' | 'ta'
+          granted_by: string | null
+          granted_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role: 'admin' | 'ta'
+          granted_by?: string | null
+          granted_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: 'admin' | 'ta'
+          granted_by?: string | null
+          granted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_roles_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          }
+        ]
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -419,3 +451,5 @@ export type AdPlacement = Database['public']['Tables']['ad_placements']['Row']
 export type IapConfig = Database['public']['Tables']['iap_configs']['Row']
 export type IapItem = Database['public']['Tables']['iap_items']['Row']
 export type Analysis = Database['public']['Tables']['analyses']['Row']
+export type UserRole = Database['public']['Tables']['user_roles']['Row']
+export type AppRole = 'admin' | 'ta'

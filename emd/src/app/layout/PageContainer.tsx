@@ -119,6 +119,12 @@ function getPageMeta(pathname: string, t: (key: string) => string, isInstructor:
   if (pathname.includes('/project/')) {
     return { title: t('projects.myProjects'), subtitle: t('dashboard.student.subtitle'), breadcrumb: t('navigation.projects'), breadcrumbTo: '/projects' }
   }
+  if (pathname.includes('/admin/users')) {
+    return { title: t('adminUsers.title'), subtitle: t('adminUsers.subtitle'), breadcrumb: t('navigation.admin'), breadcrumbTo: '/admin/dashboard' }
+  }
+  if (pathname.includes('/admin/dashboard')) {
+    return { title: t('adminDashboard.title'), subtitle: t('adminDashboard.subtitle'), breadcrumb: t('navigation.admin'), breadcrumbTo: '/admin/dashboard' }
+  }
   if (isInstructor) {
     return { title: t('dashboard.instructor.title'), subtitle: t('dashboard.student.subtitle'), breadcrumb: t('navigation.dashboard'), breadcrumbTo: '/instructor/dashboard' }
   }

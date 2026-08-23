@@ -19,6 +19,9 @@ import InstructorProjectsPage from '../features/instructor/pages/InstructorProje
 import InstructorStudentsPage from '../features/instructor/pages/InstructorStudentsPage'
 import InstructorProjectDetailPage from '../features/instructor/pages/InstructorProjectDetailPage'
 import InstructorStudentProfilePage from '../features/instructor/pages/InstructorStudentProfilePage'
+import AdminRoute from './AdminRoute'
+import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage'
+import AdminUsersPage from '../features/admin/pages/AdminUsersPage'
 import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
 import ProjectLayout from '../features/projects/pages/ProjectLayout'
 
@@ -143,6 +146,22 @@ export const router = createBrowserRouter([
             // Read-only view of a student's profile — accessible by instructor
             path: '/instructor/student/:studentId',
             element: <InstructorStudentProfilePage />,
+          },
+        ],
+      },
+      // Admin routes (require the 'admin' extra role — independent of
+      // the primary student/instructor role, so instructor+admin users
+      // pass both this guard and the instructor RoleRoute above).
+      {
+        element: <AdminRoute />,
+        children: [
+          {
+            path: '/admin/dashboard',
+            element: <AdminDashboardPage />,
+          },
+          {
+            path: '/admin/users',
+            element: <AdminUsersPage />,
           },
         ],
       },

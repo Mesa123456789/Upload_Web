@@ -23,6 +23,7 @@ export interface Database {
           student_code: string | null   // student: student ID number
           major: string | null          // student: major/program
           year: number | null           // student: year of study
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -35,6 +36,7 @@ export interface Database {
           student_code?: string | null
           major?: string | null
           year?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -47,6 +49,7 @@ export interface Database {
           student_code?: string | null
           major?: string | null
           year?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }

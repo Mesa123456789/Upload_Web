@@ -15,7 +15,8 @@
     "projects": "Projects",
     "students": "Students",
     "profile": "Profile",
-    "openProfile": "Open profile"
+    "openProfile": "Open profile",
+    "admin": "Admin"
   },
   "roles": {
     "student": "student",
@@ -236,6 +237,34 @@
     "projectCount": "{{projects}} project in {{courses}} course",
     "projectCount_other": "{{projects}} projects in {{courses}} courses",
     "emptyProjects": "No projects found for this student."
+  },
+  "adminDashboard": {
+    "title": "Admin dashboard",
+    "subtitle": "Overview of every user in the system",
+    "totalUsers": "Total users",
+    "students": "Students",
+    "instructors": "Instructors",
+    "admins": "Admins",
+    "tas": "TAs",
+    "loadFailed": "Failed to load stats"
+  },
+  "adminUsers": {
+    "title": "Manage users",
+    "subtitle": "View all users and grant/revoke roles",
+    "email": "Email",
+    "name": "Name",
+    "primaryRole": "Primary role",
+    "extraRoles": "Extra roles",
+    "none": "None",
+    "grantAdmin": "Grant admin",
+    "revokeAdmin": "Revoke admin",
+    "grantTa": "Grant TA",
+    "revokeTa": "Revoke TA",
+    "empty": "No users yet",
+    "loadFailed": "Failed to load users",
+    "confirmGrant": "Grant this role to this user?",
+    "confirmRevoke": "Revoke this role from this user?",
+    "actionFailed": "Action failed, try again"
   },
   "projects": {
     "myProjects": "My Projects",

@@ -38,13 +38,19 @@ export default function AdminDashboardPage() {
     }
   }, [t])
 
+  // 'student'/'instructor' get translated labels since they're the two
+  // fixed primary roles. Every other key in byRole is a catalog role name
+  // (admin, ta, or any custom role an admin created) — those aren't
+  // translatable strings, so the raw name is the label, same as how
+  // AdminUsersPage already displays raw role names in its badges.
   const cards = stats
     ? [
-        { label: t('adminDashboard.totalUsers'), value: stats.total },
-        { label: t('adminDashboard.students'), value: stats.byRole.student },
-        { label: t('adminDashboard.instructors'), value: stats.byRole.instructor },
-        { label: t('adminDashboard.admins'), value: stats.byRole.admin },
-        { label: t('adminDashboard.tas'), value: stats.byRole.ta },
+        { key: 'total', label: t('adminDashboard.totalUsers'), value: stats.total },
+        { key: 'student', label: t('adminDashboard.students'), value: stats.byRole.student ?? 0 },
+        { key: 'instructor', label: t('adminDashboard.instructors'), value: stats.byRole.instructor ?? 0 },
+        ...Object.entries(stats.byRole)
+          .filter(([roleName]) => roleName !== 'student' && roleName !== 'instructor')
+          .map(([roleName, value]) => ({ key: roleName, label: roleName, value })),
       ]
     : []
 
@@ -63,7 +69,7 @@ export default function AdminDashboardPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {cards.map((card) => (
-              <div key={card.label} className={cardStyle}>
+              <div key={card.key} className={cardStyle}>
                 <p className="text-sm font-semibold text-slate-500">{card.label}</p>
                 <p className="mt-2 text-3xl font-black text-[var(--ds-ink)]">{formatNumber(card.value)}</p>
               </div>

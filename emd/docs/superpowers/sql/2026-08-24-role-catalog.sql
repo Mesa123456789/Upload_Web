@@ -3,7 +3,7 @@
 -- Safe to re-run (uses if not exists / on conflict do nothing / drop policy if exists).
 
 create table if not exists public.app_roles (
-  name        text primary key,
+  name        text primary key check (name ~ '^[a-z][a-z0-9_]{1,31}$'),
   label       text not null,
   description text,
   is_builtin  boolean not null default false,
@@ -20,6 +20,7 @@ on conflict (name) do nothing;
 -- The existing admin/ta rows in user_roles already satisfy this once the
 -- two builtin catalog rows exist (inserted just above).
 alter table public.user_roles drop constraint if exists user_roles_role_check;
+alter table public.user_roles drop constraint if exists user_roles_role_fkey;
 alter table public.user_roles
   add constraint user_roles_role_fkey foreign key (role) references public.app_roles(name);
 

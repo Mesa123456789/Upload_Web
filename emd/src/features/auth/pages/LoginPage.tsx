@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { ArrowRight } from 'lucide-react'
 import { useAuth } from '../context/useAuth'
 import { isSupabaseConfigured, supabase } from '../../../lib/supabase'
@@ -8,6 +8,8 @@ import LanguageSwitcher from '../../../shared/components/LanguageSwitcher'
 export default function LoginPage() {
   const { session, loading } = useAuth()
   const { t } = useI18n()
+  const [searchParams] = useSearchParams()
+  const isDeactivated = searchParams.get('deactivated') === '1'
 
   if (!loading && session) {
     return <Navigate to="/" replace />
@@ -109,6 +111,12 @@ export default function LoginPage() {
               {!isSupabaseConfigured && (
                 <div className="mt-7 rounded-[22px] border border-[#ffd032]/60 bg-[#fff8db] p-4 text-sm leading-6 text-[#6b5010]">
                   {t('auth.login.missingSupabase')}
+                </div>
+              )}
+
+              {isDeactivated && (
+                <div className="mt-7 rounded-[22px] border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
+                  {t('auth.login.deactivated')}
                 </div>
               )}
 

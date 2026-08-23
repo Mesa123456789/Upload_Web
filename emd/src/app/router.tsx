@@ -20,6 +20,7 @@ import InstructorStudentsPage from '../features/instructor/pages/InstructorStude
 import InstructorProjectDetailPage from '../features/instructor/pages/InstructorProjectDetailPage'
 import InstructorStudentProfilePage from '../features/instructor/pages/InstructorStudentProfilePage'
 import AdminRoute from './AdminRoute'
+import AdminLayout from './layout/AdminLayout'
 import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage'
 import AdminUsersPage from '../features/admin/pages/AdminUsersPage'
 import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
@@ -152,16 +153,23 @@ export const router = createBrowserRouter([
       // Admin routes (require the 'admin' extra role — independent of
       // the primary student/instructor role, so instructor+admin users
       // pass both this guard and the instructor RoleRoute above).
+      // AdminLayout gives /admin/* its own sidebar, separate from the
+      // student/instructor Sidebar used by every other route above.
       {
         element: <AdminRoute />,
         children: [
           {
-            path: '/admin/dashboard',
-            element: <AdminDashboardPage />,
-          },
-          {
-            path: '/admin/users',
-            element: <AdminUsersPage />,
+            element: <AdminLayout />,
+            children: [
+              {
+                path: '/admin/dashboard',
+                element: <AdminDashboardPage />,
+              },
+              {
+                path: '/admin/users',
+                element: <AdminUsersPage />,
+              },
+            ],
           },
         ],
       },

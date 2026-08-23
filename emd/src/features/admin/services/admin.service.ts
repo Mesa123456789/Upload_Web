@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabase'
-import type { Profile, AppRole } from '../../../lib/database.types'
+import type { Profile, AppRole, Course } from '../../../lib/database.types'
 
 export interface UserStats {
   total: number
@@ -71,4 +71,69 @@ export async function revokeRole(userId: string, role: AppRole): Promise<void> {
     .eq('role', role)
 
   if (error) throw new Error(error.message)
+}
+
+// Update specific profile fields (admin only — enforced by the
+// profiles_update_admin RLS policy). Deliberately does NOT accept
+// email or role — email is identity, role changes go through
+// grantRole/revokeRole or stay untouched (profiles.role is out of scope).
+export async function updateUserProfile(
+  userId: string,
+  updates: {
+    display_name?: string | null
+    major?: string | null
+    year?: number | null
+    student_code?: string | null
+    contact_info?: string | null
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
+}
+
+// Activate or deactivate a user's account. Soft flag only — never deletes
+// or touches auth.users. Enforcement of what "deactivated" means happens
+// client-side in AuthContext, not here.
+export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ is_active: isActive, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+
+  if (error) throw new Error(error.message)
+}
+
+// Every course in the system, for the admin user-table's course filter.
+// Unlike courses.service.ts's listInstructorCourses (own courses only),
+// this is admin-scoped: every course regardless of who created it.
+export async function listAllCourses(): Promise<Course[]> {
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .order('title', { ascending: true })
+
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+// Every enrollment in the system, shaped as course_id -> student_ids,
+// for filtering the admin user table by course membership.
+export async function listAllEnrollments(): Promise<Map<string, string[]>> {
+  const { data, error } = await supabase
+    .from('course_enrollments')
+    .select('course_id, student_id')
+
+  if (error) throw new Error(error.message)
+
+  const map = new Map<string, string[]>()
+  for (const row of data ?? []) {
+    const existing = map.get(row.course_id) ?? []
+    existing.push(row.student_id)
+    map.set(row.course_id, existing)
+  }
+  return map
 }

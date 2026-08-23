@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, LayoutDashboard, ShieldCheck, Users } from 'lucide-react'
+import { ArrowLeft, LayoutDashboard, Shield, ShieldCheck, Users } from 'lucide-react'
 import { useI18n } from '../../i18n/I18nProvider'
 
 // Width of the admin sidebar, in px. Static (no collapse/expand like the
@@ -15,6 +15,7 @@ export default function AdminSidebar() {
   const items = [
     { id: 'dashboard', label: t('adminLayout.dashboard'), to: '/admin/dashboard', icon: LayoutDashboard },
     { id: 'users', label: t('adminLayout.users'), to: '/admin/users', icon: Users },
+    { id: 'roles', label: t('adminLayout.roles'), to: '/admin/roles', icon: Shield },
   ]
 
   return (

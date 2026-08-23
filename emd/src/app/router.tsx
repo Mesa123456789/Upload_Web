@@ -23,6 +23,7 @@ import AdminRoute from './AdminRoute'
 import AdminLayout from './layout/AdminLayout'
 import AdminDashboardPage from '../features/admin/pages/AdminDashboardPage'
 import AdminUsersPage from '../features/admin/pages/AdminUsersPage'
+import AdminRolesPage from '../features/admin/pages/AdminRolesPage'
 import { RouteLoadingSkeleton } from '../shared/components/Skeleton'
 import ProjectLayout from '../features/projects/pages/ProjectLayout'
 
@@ -168,6 +169,10 @@ export const router = createBrowserRouter([
               {
                 path: '/admin/users',
                 element: <AdminUsersPage />,
+              },
+              {
+                path: '/admin/roles',
+                element: <AdminRolesPage />,
               },
             ],
           },

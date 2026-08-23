@@ -403,25 +403,52 @@ export interface Database {
           }
         ]
       }
+      app_roles: {
+        Row: {
+          name: string
+          label: string
+          description: string | null
+          is_builtin: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          name: string
+          label: string
+          description?: string | null
+          is_builtin?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          name?: string
+          label?: string
+          description?: string | null
+          is_builtin?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
           user_id: string
-          role: 'admin' | 'ta'
+          role: string
           granted_by: string | null
           granted_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          role: 'admin' | 'ta'
+          role: string
           granted_by?: string | null
           granted_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          role?: 'admin' | 'ta'
+          role?: string
           granted_by?: string | null
           granted_at?: string
         }
@@ -455,4 +482,9 @@ export type IapConfig = Database['public']['Tables']['iap_configs']['Row']
 export type IapItem = Database['public']['Tables']['iap_items']['Row']
 export type Analysis = Database['public']['Tables']['analyses']['Row']
 export type UserRole = Database['public']['Tables']['user_roles']['Row']
-export type AppRole = 'admin' | 'ta'
+// Widened to `string` because role names are now created at runtime through
+// the app_roles catalog, not fixed at compile time. 'admin' stays a special
+// string used directly in code (AuthContext's isAdmin check, RLS has_role
+// calls) — it doesn't need its own literal type for that to keep working.
+export type AppRole = string
+export type AppRoleCatalogEntry = Database['public']['Tables']['app_roles']['Row']

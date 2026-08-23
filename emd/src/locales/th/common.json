@@ -75,6 +75,7 @@
       "missingSupabase": "ยังไม่ได้ตั้งค่า Supabase โปรดเพิ่ม VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY ในไฟล์ .env เพื่อใช้งานระบบล็อกอินและฐานข้อมูล",
       "cmuPending": "ระบบ CMU OAuth รอการตั้งค่า API",
       "googleFailed": "เข้าสู่ระบบไม่สำเร็จ โปรดลองอีกครั้ง",
+      "deactivated": "บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ",
       "features": {
         "courses": "รายวิชา",
         "projects": "โปรเจกต์",
@@ -264,7 +265,30 @@
     "loadFailed": "โหลดรายชื่อผู้ใช้ไม่สำเร็จ",
     "confirmGrant": "ยืนยันมอบสิทธิ์นี้ให้ผู้ใช้คนนี้?",
     "confirmRevoke": "ยืนยันถอนสิทธิ์นี้จากผู้ใช้คนนี้?",
-    "actionFailed": "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง"
+    "actionFailed": "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "filterRole": "กรองตาม Role",
+    "filterAll": "ทั้งหมด",
+    "searchPlaceholder": "ค้นหาชื่อหรืออีเมล",
+    "filterCourse": "กรองตามวิชา",
+    "filterMajor": "กรองตามสาขา",
+    "filterYear": "กรองตามชั้นปี",
+    "status": "สถานะ",
+    "statusActive": "ใช้งานอยู่",
+    "statusInactive": "ถูกระงับ",
+    "deactivate": "ระงับการใช้งาน",
+    "activate": "เปิดใช้งาน",
+    "confirmDeactivate": "ยืนยันระงับการใช้งานผู้ใช้คนนี้?",
+    "confirmActivate": "ยืนยันเปิดใช้งานผู้ใช้คนนี้อีกครั้ง?",
+    "edit": "แก้ไข",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "editFailed": "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง"
+  },
+  "adminLayout": {
+    "title": "Admin Panel",
+    "dashboard": "แดชบอร์ด",
+    "users": "ผู้ใช้",
+    "backToApp": "กลับหน้าหลัก"
   },
   "projects": {
     "myProjects": "โปรเจกต์ของฉัน",

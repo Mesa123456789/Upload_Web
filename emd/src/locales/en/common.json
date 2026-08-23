@@ -75,6 +75,7 @@
       "missingSupabase": "Supabase env is missing. Login and database features need VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.",
       "cmuPending": "CMU OAuth is waiting for API configuration.",
       "googleFailed": "Login failed. Please try again.",
+      "deactivated": "This account has been deactivated. Please contact an administrator.",
       "features": {
         "courses": "Courses",
         "projects": "Projects",
@@ -264,7 +265,30 @@
     "loadFailed": "Failed to load users",
     "confirmGrant": "Grant this role to this user?",
     "confirmRevoke": "Revoke this role from this user?",
-    "actionFailed": "Action failed, try again"
+    "actionFailed": "Action failed, try again",
+    "filterRole": "Filter by role",
+    "filterAll": "All",
+    "searchPlaceholder": "Search name or email",
+    "filterCourse": "Filter by course",
+    "filterMajor": "Filter by major",
+    "filterYear": "Filter by year",
+    "status": "Status",
+    "statusActive": "Active",
+    "statusInactive": "Deactivated",
+    "deactivate": "Deactivate",
+    "activate": "Activate",
+    "confirmDeactivate": "Deactivate this user's account?",
+    "confirmActivate": "Reactivate this user's account?",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "editFailed": "Save failed, try again"
+  },
+  "adminLayout": {
+    "title": "Admin Panel",
+    "dashboard": "Dashboard",
+    "users": "Users",
+    "backToApp": "Back to app"
   },
   "projects": {
     "myProjects": "My Projects",

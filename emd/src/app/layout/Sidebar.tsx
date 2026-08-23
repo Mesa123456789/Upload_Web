@@ -9,6 +9,7 @@ import {
   Menu,
   Plus,
   Settings,
+  ShieldCheck,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -54,7 +55,7 @@ function CollapsedTooltip({ children, label, enabled }: TooltipProps) {
 }
 
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
-  const { profile } = useAuth()
+  const { profile, isAdmin } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
@@ -65,7 +66,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     ? { label: t('instructorCourses.createNew'), to: '/instructor/courses' }
     : { label: t('projects.createNew'), to: '/project/new' }
 
-  const mainItems: SidebarNavItem[] = isInstructor
+  const roleItems: SidebarNavItem[] = isInstructor
     ? [
         {
           id: 'dashboard',
@@ -119,6 +120,21 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           active: location.pathname === '/join' || location.pathname.startsWith('/course/'),
         },
       ]
+
+  const mainItems: SidebarNavItem[] = [
+    ...roleItems,
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            label: t('navigation.admin'),
+            to: '/admin/dashboard',
+            icon: ShieldCheck,
+            active: location.pathname.startsWith('/admin'),
+          },
+        ]
+      : []),
+  ]
 
   const utilityItems: SidebarNavItem[] = [
     {

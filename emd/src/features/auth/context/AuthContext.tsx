@@ -218,6 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setDeactivated(true)
         setProfile(null)
         setRoles([])
+        setSession(null)
+        setUser(null)
         setLoading(false)
         void supabase.auth.signOut({ scope: 'local' })
         return

@@ -87,24 +87,28 @@ export async function updateUserProfile(
     contact_info?: string | null
   }
 ): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', userId)
+    .select('id')
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) throw new Error('Update affected no rows (RLS or missing user)')
 }
 
 // Activate or deactivate a user's account. Soft flag only — never deletes
 // or touches auth.users. Enforcement of what "deactivated" means happens
 // client-side in AuthContext, not here.
 export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .update({ is_active: isActive, updated_at: new Date().toISOString() })
     .eq('id', userId)
+    .select('id')
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) throw new Error('Update affected no rows (RLS or missing user)')
 }
 
 // Every course in the system, for the admin user-table's course filter.

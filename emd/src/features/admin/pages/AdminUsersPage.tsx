@@ -11,11 +11,10 @@ import {
   setUserActive,
   listAllCourses,
   listAllEnrollments,
+  listRoles,
   type UserWithRoles,
 } from '../services/admin.service'
-import type { AppRole, Course } from '../../../lib/database.types'
-
-type RoleFilter = 'all' | 'student' | 'instructor' | 'admin' | 'ta'
+import type { AppRole, AppRoleCatalogEntry, Course } from '../../../lib/database.types'
 
 interface EditForm {
   display_name: string
@@ -61,6 +60,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserWithRoles[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [enrollments, setEnrollments] = useState<Map<string, string[]>>(new Map())
+  const [roleCatalog, setRoleCatalog] = useState<AppRoleCatalogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
@@ -68,7 +68,7 @@ export default function AdminUsersPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState<EditForm>({ display_name: '', major: '', year: '', student_code: '', contact_info: '' })
 
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [roleFilter, setRoleFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [courseFilter, setCourseFilter] = useState('all')
   const [majorFilter, setMajorFilter] = useState('all')
@@ -77,11 +77,12 @@ export default function AdminUsersPage() {
   function load() {
     setError(null)
     setLoading(true)
-    Promise.all([listUsers(), listAllCourses(), listAllEnrollments()])
-      .then(([u, c, e]) => {
+    Promise.all([listUsers(), listAllCourses(), listAllEnrollments(), listRoles()])
+      .then(([u, c, e, r]) => {
         setUsers(u)
         setCourses(c)
         setEnrollments(e)
+        setRoleCatalog(r)
       })
       .catch(() => setError(t('adminUsers.loadFailed')))
       .finally(() => setLoading(false))
@@ -102,7 +103,7 @@ export default function AdminUsersPage() {
     return users.filter((row) => {
       if (roleFilter !== 'all') {
         const matchesPrimary = row.role === roleFilter
-        const matchesExtra = row.extraRoles.includes(roleFilter as AppRole)
+        const matchesExtra = row.extraRoles.includes(roleFilter)
         if (!matchesPrimary && !matchesExtra) return false
       }
       if (search.trim()) {
@@ -122,9 +123,13 @@ export default function AdminUsersPage() {
 
   async function toggleRole(target: UserWithRoles, role: AppRole) {
     if (!user) return
-    if (target.id === user.id) return
     const hasRole = target.extraRoles.includes(role)
-    const confirmMessage = hasRole ? t('adminUsers.confirmRevoke') : t('adminUsers.confirmGrant')
+    // Only revoking 'admin' from your own row is a lockout risk — revoking
+    // any other extra role from yourself is fine, that's why this guard
+    // checks the specific role rather than blanket-blocking all self-toggles.
+    if (target.id === user.id && role === 'admin' && hasRole) return
+
+    const confirmMessage = hasRole ? t('adminUsers.confirmRevokeRole') : t('adminUsers.confirmGrant')
     if (!window.confirm(confirmMessage)) return
 
     setPendingUserId(target.id)
@@ -207,12 +212,13 @@ export default function AdminUsersPage() {
           placeholder={t('adminUsers.searchPlaceholder')}
           className={`${inputClass} w-56`}
         />
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as RoleFilter)} className={selectClass}>
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
           <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterRole')})</option>
           <option value="student">student</option>
           <option value="instructor">instructor</option>
-          <option value="admin">admin</option>
-          <option value="ta">ta</option>
+          {roleCatalog.map((role) => (
+            <option key={role.name} value={role.name}>{role.name}</option>
+          ))}
         </select>
         <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass}>
           <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterCourse')})</option>
@@ -259,9 +265,9 @@ export default function AdminUsersPage() {
               )}
               {filteredUsers.map((row) => {
                 const isPending = pendingUserId === row.id
-                const isAdminRow = row.extraRoles.includes('admin')
                 const isSelf = row.id === user?.id
                 const isEditing = editingUserId === row.id
+                const availableRoles = roleCatalog.filter((role) => !row.extraRoles.includes(role.name))
 
                 if (isEditing) {
                   return (
@@ -295,15 +301,42 @@ export default function AdminUsersPage() {
                       <Badge variant={row.role === 'instructor' ? 'blue' : 'default'}>{row.role}</Badge>
                     </td>
                     <td className="px-6 py-4">
-                      {row.extraRoles.length === 0 ? (
-                        <span className="text-slate-400">{t('adminUsers.none')}</span>
-                      ) : (
-                        <div className="flex flex-wrap gap-1.5">
-                          {row.extraRoles.map((role) => (
-                            <Badge key={role} variant="purple">{role}</Badge>
-                          ))}
-                        </div>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {row.extraRoles.length === 0 && (
+                          <span className="text-slate-400">{t('adminUsers.none')}</span>
+                        )}
+                        {row.extraRoles.map((role) => {
+                          const isAdminChip = role === 'admin'
+                          const chipDisabled = isPending || (isSelf && isAdminChip)
+                          return (
+                            <button
+                              key={role}
+                              type="button"
+                              disabled={chipDisabled}
+                              onClick={() => toggleRole(row, role)}
+                              title={t('adminUsers.confirmRevokeRole')}
+                              className="disabled:opacity-40"
+                            >
+                              <Badge variant="purple">{role} ×</Badge>
+                            </button>
+                          )
+                        })}
+                        {availableRoles.length > 0 && (
+                          <select
+                            value=""
+                            disabled={isPending}
+                            onChange={(e) => {
+                              if (e.target.value) toggleRole(row, e.target.value)
+                            }}
+                            className="h-7 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-500 disabled:opacity-40"
+                          >
+                            <option value="">{t('adminUsers.addRole')}</option>
+                            {availableRoles.map((role) => (
+                              <option key={role.name} value={role.name}>{role.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <Badge variant={row.is_active ? 'green' : 'red'}>
@@ -327,14 +360,6 @@ export default function AdminUsersPage() {
                           className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
                         >
                           {row.is_active ? t('adminUsers.deactivate') : t('adminUsers.activate')}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isPending || isSelf}
-                          onClick={() => toggleRole(row, 'admin')}
-                          className="rounded-full border border-[#F48E2E]/45 px-3 py-1.5 text-xs font-bold text-[#7a3414] transition hover:bg-[#F48E2E]/10 disabled:opacity-40"
-                        >
-                          {isAdminRow ? t('adminUsers.revokeAdmin') : t('adminUsers.grantAdmin')}
                         </button>
                       </div>
                     </td>

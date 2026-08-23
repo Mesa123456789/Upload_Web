@@ -1,46 +1,124 @@
-import { useEffect, useState } from 'react'
-import PageContainer from '../../../app/layout/PageContainer'
+import { useEffect, useMemo, useState } from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import Badge from '../../../shared/components/Badge'
 import { useI18n } from '../../../i18n/I18nProvider'
 import { useAuth } from '../../auth/context/useAuth'
-import { listUsers, grantRole, revokeRole, type UserWithRoles } from '../services/admin.service'
-import type { AppRole } from '../../../lib/database.types'
+import {
+  listUsers,
+  grantRole,
+  revokeRole,
+  updateUserProfile,
+  setUserActive,
+  listAllCourses,
+  listAllEnrollments,
+  type UserWithRoles,
+} from '../services/admin.service'
+import type { AppRole, Course } from '../../../lib/database.types'
+
+type RoleFilter = 'all' | 'student' | 'instructor' | 'admin' | 'ta'
+
+interface EditForm {
+  display_name: string
+  major: string
+  year: string
+  student_code: string
+  contact_info: string
+}
 
 function UsersSkeleton() {
   return (
-    <PageContainer>
-      <div className="rounded-[28px] bg-white px-8 py-6 shadow-[0_18px_35px_rgba(17,24,39,0.08)]">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="grid grid-cols-4 gap-5 border-b border-[#e5e7eb] py-4 last:border-0">
-            {Array.from({ length: 4 }).map((__, cell) => (
-              <Skeleton key={cell} className="h-4" />
-            ))}
-          </div>
-        ))}
-      </div>
-    </PageContainer>
+    <div className="rounded-[28px] bg-white px-8 py-6 shadow-[0_18px_35px_rgba(17,24,39,0.08)]">
+      {Array.from({ length: 8 }).map((_, index) => (
+        <div key={index} className="grid grid-cols-5 gap-5 border-b border-[#e5e7eb] py-4 last:border-0">
+          {Array.from({ length: 5 }).map((__, cell) => (
+            <Skeleton key={cell} className="h-4" />
+          ))}
+        </div>
+      ))}
+    </div>
   )
 }
+
+function toEditForm(user: UserWithRoles): EditForm {
+  return {
+    display_name: user.display_name ?? '',
+    major: user.major ?? '',
+    year: user.year != null ? String(user.year) : '',
+    student_code: user.student_code ?? '',
+    contact_info: user.contact_info ?? '',
+  }
+}
+
+const selectClass =
+  'h-10 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#F48E2E]/40'
+const inputClass =
+  'h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F48E2E]/40'
 
 export default function AdminUsersPage() {
   const { t } = useI18n()
   const { user } = useAuth()
+
   const [users, setUsers] = useState<UserWithRoles[]>([])
+  const [courses, setCourses] = useState<Course[]>([])
+  const [enrollments, setEnrollments] = useState<Map<string, string[]>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pendingUserId, setPendingUserId] = useState<string | null>(null)
 
+  const [editingUserId, setEditingUserId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<EditForm>({ display_name: '', major: '', year: '', student_code: '', contact_info: '' })
+
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [search, setSearch] = useState('')
+  const [courseFilter, setCourseFilter] = useState('all')
+  const [majorFilter, setMajorFilter] = useState('all')
+  const [yearFilter, setYearFilter] = useState('all')
+
   function load() {
     setError(null)
     setLoading(true)
-    listUsers()
-      .then(setUsers)
+    Promise.all([listUsers(), listAllCourses(), listAllEnrollments()])
+      .then(([u, c, e]) => {
+        setUsers(u)
+        setCourses(c)
+        setEnrollments(e)
+      })
       .catch(() => setError(t('adminUsers.loadFailed')))
       .finally(() => setLoading(false))
   }
 
   useEffect(load, [t])
+
+  const majors = useMemo(
+    () => Array.from(new Set(users.map((u) => u.major).filter((m): m is string => !!m))).sort(),
+    [users],
+  )
+  const years = useMemo(
+    () => Array.from(new Set(users.map((u) => u.year).filter((y): y is number => y != null))).sort((a, b) => a - b),
+    [users],
+  )
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((row) => {
+      if (roleFilter !== 'all') {
+        const matchesPrimary = row.role === roleFilter
+        const matchesExtra = row.extraRoles.includes(roleFilter as AppRole)
+        if (!matchesPrimary && !matchesExtra) return false
+      }
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const haystack = `${row.display_name ?? ''} ${row.email}`.toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      if (courseFilter !== 'all') {
+        const studentIds = enrollments.get(courseFilter) ?? []
+        if (!studentIds.includes(row.id)) return false
+      }
+      if (majorFilter !== 'all' && row.major !== majorFilter) return false
+      if (yearFilter !== 'all' && String(row.year ?? '') !== yearFilter) return false
+      return true
+    })
+  }, [users, roleFilter, search, courseFilter, majorFilter, yearFilter, enrollments])
 
   async function toggleRole(target: UserWithRoles, role: AppRole) {
     if (!user) return
@@ -65,70 +143,208 @@ export default function AdminUsersPage() {
     }
   }
 
-  if (loading) return <UsersSkeleton />
+  async function toggleActive(target: UserWithRoles) {
+    if (!user) return
+    if (target.id === user.id) return
+    const confirmMessage = target.is_active ? t('adminUsers.confirmDeactivate') : t('adminUsers.confirmActivate')
+    if (!window.confirm(confirmMessage)) return
+
+    setPendingUserId(target.id)
+    setError(null)
+    try {
+      await setUserActive(target.id, !target.is_active)
+      load()
+    } catch {
+      setError(t('adminUsers.actionFailed'))
+    } finally {
+      setPendingUserId(null)
+    }
+  }
+
+  function startEdit(target: UserWithRoles) {
+    setEditingUserId(target.id)
+    setEditForm(toEditForm(target))
+  }
+
+  function cancelEdit() {
+    setEditingUserId(null)
+  }
+
+  async function saveEdit(targetId: string) {
+    setPendingUserId(targetId)
+    setError(null)
+    try {
+      await updateUserProfile(targetId, {
+        display_name: editForm.display_name.trim() || null,
+        major: editForm.major.trim() || null,
+        year: editForm.year.trim() ? Number(editForm.year) : null,
+        student_code: editForm.student_code.trim() || null,
+        contact_info: editForm.contact_info.trim() || null,
+      })
+      setEditingUserId(null)
+      load()
+    } catch {
+      setError(t('adminUsers.editFailed'))
+    } finally {
+      setPendingUserId(null)
+    }
+  }
 
   return (
-    <PageContainer>
+    <div>
+      <h1 className="text-[26px] font-black tracking-tight text-[var(--ds-ink)]">{t('adminUsers.title')}</h1>
+      <p className="mt-1 text-sm text-slate-500">{t('adminUsers.subtitle')}</p>
+
       {error && (
-        <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>
+        <p className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>
       )}
-      <div className="overflow-x-auto rounded-[28px] bg-white shadow-[0_18px_35px_rgba(17,24,39,0.08)]">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-[#e5e7eb] text-xs font-bold uppercase tracking-wide text-slate-400">
-              <th className="px-6 py-4">{t('adminUsers.name')}</th>
-              <th className="px-6 py-4">{t('adminUsers.email')}</th>
-              <th className="px-6 py-4">{t('adminUsers.primaryRole')}</th>
-              <th className="px-6 py-4">{t('adminUsers.extraRoles')}</th>
-              <th className="px-6 py-4" />
-            </tr>
-          </thead>
-          <tbody>
-            {users.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
-                  {t('adminUsers.empty')}
-                </td>
+
+      <div className="mt-6 flex flex-wrap gap-3">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t('adminUsers.searchPlaceholder')}
+          className={`${inputClass} w-56`}
+        />
+        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as RoleFilter)} className={selectClass}>
+          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterRole')})</option>
+          <option value="student">student</option>
+          <option value="instructor">instructor</option>
+          <option value="admin">admin</option>
+          <option value="ta">ta</option>
+        </select>
+        <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass}>
+          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterCourse')})</option>
+          {courses.map((course) => (
+            <option key={course.id} value={course.id}>{course.title}</option>
+          ))}
+        </select>
+        <select value={majorFilter} onChange={(e) => setMajorFilter(e.target.value)} className={selectClass}>
+          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterMajor')})</option>
+          {majors.map((major) => (
+            <option key={major} value={major}>{major}</option>
+          ))}
+        </select>
+        <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} className={selectClass}>
+          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterYear')})</option>
+          {years.map((year) => (
+            <option key={year} value={String(year)}>{year}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="mt-6 overflow-x-auto rounded-[28px] bg-white shadow-[0_18px_35px_rgba(17,24,39,0.08)]">
+        {loading ? (
+          <UsersSkeleton />
+        ) : (
+          <table className="w-full min-w-[960px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-[#e5e7eb] text-xs font-bold uppercase tracking-wide text-slate-400">
+                <th className="px-6 py-4">{t('adminUsers.name')}</th>
+                <th className="px-6 py-4">{t('adminUsers.email')}</th>
+                <th className="px-6 py-4">{t('adminUsers.primaryRole')}</th>
+                <th className="px-6 py-4">{t('adminUsers.extraRoles')}</th>
+                <th className="px-6 py-4">{t('adminUsers.status')}</th>
+                <th className="px-6 py-4" />
               </tr>
-            )}
-            {users.map((row) => {
-              const isPending = pendingUserId === row.id
-              const isAdmin = row.extraRoles.includes('admin')
-              const isSelf = row.id === user?.id
-              return (
-                <tr key={row.id} className="border-b border-[#e5e7eb] last:border-0">
-                  <td className="px-6 py-4 font-semibold text-slate-800">{row.display_name ?? '—'}</td>
-                  <td className="px-6 py-4 text-slate-500">{row.email}</td>
-                  <td className="px-6 py-4">
-                    <Badge variant={row.role === 'instructor' ? 'blue' : 'default'}>{row.role}</Badge>
-                  </td>
-                  <td className="px-6 py-4">
-                    {row.extraRoles.length === 0 ? (
-                      <span className="text-slate-400">{t('adminUsers.none')}</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {row.extraRoles.map((role) => (
-                          <Badge key={role} variant="purple">{role}</Badge>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      type="button"
-                      disabled={isPending || isSelf}
-                      onClick={() => toggleRole(row, 'admin')}
-                      className="rounded-full border border-[#F48E2E]/45 px-3 py-1.5 text-xs font-bold text-[#7a3414] transition hover:bg-[#F48E2E]/10 disabled:opacity-40"
-                    >
-                      {isAdmin ? t('adminUsers.revokeAdmin') : t('adminUsers.grantAdmin')}
-                    </button>
+            </thead>
+            <tbody>
+              {filteredUsers.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                    {t('adminUsers.empty')}
                   </td>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              )}
+              {filteredUsers.map((row) => {
+                const isPending = pendingUserId === row.id
+                const isAdminRow = row.extraRoles.includes('admin')
+                const isSelf = row.id === user?.id
+                const isEditing = editingUserId === row.id
+
+                if (isEditing) {
+                  return (
+                    <tr key={row.id} className="border-b border-[#e5e7eb] bg-[#F48E2E]/5 last:border-0">
+                      <td className="px-6 py-4" colSpan={6}>
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                          <input className={inputClass} placeholder={t('adminUsers.name')} value={editForm.display_name} onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })} />
+                          <input className={inputClass} placeholder="Major" value={editForm.major} onChange={(e) => setEditForm({ ...editForm, major: e.target.value })} />
+                          <input className={inputClass} placeholder="Year" inputMode="numeric" value={editForm.year} onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
+                          <input className={inputClass} placeholder="Student code" value={editForm.student_code} onChange={(e) => setEditForm({ ...editForm, student_code: e.target.value })} />
+                          <input className={inputClass} placeholder="Contact" value={editForm.contact_info} onChange={(e) => setEditForm({ ...editForm, contact_info: e.target.value })} />
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button type="button" disabled={isPending} onClick={() => saveEdit(row.id)} className="rounded-full bg-[#F48E2E] px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40">
+                            {t('adminUsers.save')}
+                          </button>
+                          <button type="button" disabled={isPending} onClick={cancelEdit} className="rounded-full border border-slate-300 px-4 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40">
+                            {t('adminUsers.cancel')}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                }
+
+                return (
+                  <tr key={row.id} className="border-b border-[#e5e7eb] last:border-0">
+                    <td className="px-6 py-4 font-semibold text-slate-800">{row.display_name ?? '—'}</td>
+                    <td className="px-6 py-4 text-slate-500">{row.email}</td>
+                    <td className="px-6 py-4">
+                      <Badge variant={row.role === 'instructor' ? 'blue' : 'default'}>{row.role}</Badge>
+                    </td>
+                    <td className="px-6 py-4">
+                      {row.extraRoles.length === 0 ? (
+                        <span className="text-slate-400">{t('adminUsers.none')}</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.extraRoles.map((role) => (
+                            <Badge key={role} variant="purple">{role}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <Badge variant={row.is_active ? 'green' : 'red'}>
+                        {row.is_active ? t('adminUsers.statusActive') : t('adminUsers.statusInactive')}
+                      </Badge>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => startEdit(row)}
+                          className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
+                        >
+                          {t('adminUsers.edit')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isPending || isSelf}
+                          onClick={() => toggleActive(row)}
+                          className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
+                        >
+                          {row.is_active ? t('adminUsers.deactivate') : t('adminUsers.activate')}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isPending || isSelf}
+                          onClick={() => toggleRole(row, 'admin')}
+                          className="rounded-full border border-[#F48E2E]/45 px-3 py-1.5 text-xs font-bold text-[#7a3414] transition hover:bg-[#F48E2E]/10 disabled:opacity-40"
+                        >
+                          {isAdminRow ? t('adminUsers.revokeAdmin') : t('adminUsers.grantAdmin')}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
-    </PageContainer>
+    </div>
   )
 }

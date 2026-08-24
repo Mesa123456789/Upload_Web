@@ -44,7 +44,11 @@ export async function listUsers(): Promise<UserWithRoles[]> {
 // Every catalog role appears in the result even with zero holders, so the
 // dashboard can render a card for it.
 export async function getUserStats(): Promise<UserStats> {
-  const [users, roles] = await Promise.all([listUsers(), listRoles()])
+  // listRoles() degrades to [] instead of rejecting the whole Promise.all —
+  // if the app_roles table isn't there yet (migration not run / deploy
+  // ordering gap), the dashboard should still show total/student/instructor
+  // instead of going completely blank over an unrelated table.
+  const [users, roles] = await Promise.all([listUsers(), listRoles().catch(() => [])])
 
   const byRole: UserStats['byRole'] = { student: 0, instructor: 0 }
   for (const role of roles) {
@@ -191,5 +195,14 @@ export async function deleteRole(name: string): Promise<void> {
     .delete()
     .eq('name', name)
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    // 23503 = foreign_key_violation — someone still holds this role.
+    // Surface a distinct signal so the UI can show a specific, actionable
+    // message instead of a generic "try again" (retrying can never work
+    // here — the role must be revoked from every holder first).
+    if (error.code === '23503') {
+      throw new Error('ROLE_IN_USE')
+    }
+    throw new Error(error.message)
+  }
 }

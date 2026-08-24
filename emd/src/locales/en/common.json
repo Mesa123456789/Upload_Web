@@ -302,6 +302,7 @@
     "loadFailed": "Failed to load roles",
     "createFailed": "Failed to create role, try again",
     "deleteFailed": "Failed to delete role, try again",
+    "deleteInUse": "Can't delete — this role is still held by at least one user. Revoke it from everyone first.",
     "confirmDelete": "Delete this role? (Anyone holding it must be revoked first)",
     "invalidName": "Role name must be lowercase a-z, 0-9, _ only, 2-32 characters, starting with a letter",
     "nameTaken": "That role name is already taken"

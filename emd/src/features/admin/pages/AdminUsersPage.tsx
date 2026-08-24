@@ -77,7 +77,10 @@ export default function AdminUsersPage() {
   function load() {
     setError(null)
     setLoading(true)
-    Promise.all([listUsers(), listAllCourses(), listAllEnrollments(), listRoles()])
+    // listRoles() degrades to [] instead of rejecting the whole Promise.all —
+    // if app_roles isn't there yet, this page should keep working for
+    // everything unrelated to the role catalog (list, edit, deactivate).
+    Promise.all([listUsers(), listAllCourses(), listAllEnrollments(), listRoles().catch(() => [])])
       .then(([u, c, e, r]) => {
         setUsers(u)
         setCourses(c)

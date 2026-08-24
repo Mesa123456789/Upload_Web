@@ -88,8 +88,9 @@ export default function AdminRolesPage() {
     try {
       await deleteRole(role.name)
       load()
-    } catch {
-      setError(t('adminRoles.deleteFailed'))
+    } catch (err) {
+      const inUse = err instanceof Error && err.message === 'ROLE_IN_USE'
+      setError(inUse ? t('adminRoles.deleteInUse') : t('adminRoles.deleteFailed'))
     } finally {
       setPendingName(null)
     }

@@ -8,11 +8,6 @@ import StudentBento from '../../../components/animata/bento-grid/student'
 import StudentProjectsPanel from '../components/StudentProjectsPanel'
 import { useStudentCourseProjects } from '../hooks/useStudentCourseProjects'
 
-function normalizeBars(values: number[], minimum = 18) {
-  const max = Math.max(...values, 1)
-  return values.map((value) => value === 0 ? 8 : Math.max(minimum, Math.round((value / max) * 100)))
-}
-
 function DashboardSkeleton() {
   return (
     <PageContainer>
@@ -52,22 +47,10 @@ export default function StudentDashboardPage() {
 
   const activeProjects = projects.length
   const submittedProjects = projects.filter((project) => project.status !== 'draft').length
-  const guardrailReady = projects.filter((project) => project.current_step >= 3).length
   const gradedProjects = projects.filter((project) => project.grade != null)
   const gradeAverage = gradedProjects.length > 0
     ? Math.round(gradedProjects.reduce((total, project) => total + (project.grade ?? 0), 0) / gradedProjects.length)
     : null
-  const stepCounts = {
-    setup: projects.filter((project) => project.current_step <= 1).length,
-    build: projects.filter((project) => project.current_step === 2).length,
-    output: projects.filter((project) => project.current_step >= 4).length,
-  }
-  const reportBars = normalizeBars([
-    stepCounts.setup,
-    stepCounts.build,
-    guardrailReady,
-    stepCounts.output,
-  ], 16)
   const addProjectCourseId = selectedCourse?.id ?? courseData[0]?.course.id
 
   if (loading) return <DashboardSkeleton />
@@ -98,9 +81,6 @@ export default function StudentDashboardPage() {
         activeProjects={activeProjects}
         submittedReady={submittedProjects}
         gradeAverage={gradeAverage}
-        guardrailReady={guardrailReady}
-        stepCounts={stepCounts}
-        reportBars={reportBars}
       />
 
       <StudentProjectsPanel

@@ -5,6 +5,7 @@ import { useAuth } from '../../features/auth/context/useAuth'
 import { useI18n } from '../../i18n/I18nProvider'
 import CollapsedTooltip from './SidebarTooltip'
 import { sidebarCollapsedWidth, sidebarExpandedWidth, type SidebarNavItem } from './Sidebar'
+import { useIsMobile } from './useIsMobile'
 
 const sidebarEase = [0.4, 0, 0.2, 1] as const
 const sidebarTransition: Transition = { duration: 0.3, ease: sidebarEase }
@@ -23,6 +24,7 @@ export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
   const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
+  const isMobile = useIsMobile()
   const width = isOpen ? sidebarExpandedWidth : sidebarCollapsedWidth
 
   const mainItems: SidebarNavItem[] = [
@@ -63,7 +65,7 @@ export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
     <AnimatePresence initial={false}>
       {isOpen && (
         <motion.span
-          key={label}
+          key="nav-label"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -92,6 +94,7 @@ export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
           <NavLink
             to={item.to}
             end={item.id === 'back-to-app'}
+            onClick={() => { if (isMobile) setIsOpen(false) }}
             className={`group/item relative flex h-10 w-full min-w-0 items-center overflow-hidden whitespace-nowrap rounded-full text-sm font-semibold ${
               item.active ? 'border border-[#F48E2E]/45 bg-[#F48E2E]/12 text-[#7a3414] shadow-[0_8px_18px_rgba(244,142,46,0.14)]' : 'text-slate-600 hover:bg-[#F48E2E]/8 hover:text-[#7a3414]'
             }`}
@@ -108,14 +111,29 @@ export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
   }
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width }}
-      transition={sidebarTransition}
-      style={{ width }}
-      className="no-print fixed bottom-0 left-0 top-0 z-50 flex h-screen flex-col overflow-visible border-r-2 border-[#F48E2E]/70 bg-white px-3 py-3 text-slate-900 shadow-[14px_0_34px_rgba(244,142,46,0.12)]"
-      aria-label="Admin sidebar"
-    >
+    <>
+      <AnimatePresence>
+        {isMobile && isOpen && (
+          <motion.div
+            key="sidebar-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setIsOpen(false)}
+            className="no-print fixed inset-0 z-40 bg-black/40"
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+      <motion.aside
+        initial={false}
+        animate={isMobile ? { x: isOpen ? 0 : -sidebarExpandedWidth } : { width }}
+        transition={sidebarTransition}
+        style={isMobile ? { width: sidebarExpandedWidth } : { width }}
+        className="no-print fixed bottom-0 left-0 top-0 z-50 flex h-screen flex-col overflow-visible border-r-2 border-[#F48E2E]/70 bg-white px-3 py-3 text-slate-900 shadow-[14px_0_34px_rgba(244,142,46,0.12)]"
+        aria-label="Admin sidebar"
+      >
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between">
           <button
@@ -161,7 +179,7 @@ export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
         <CollapsedTooltip label={displayName} enabled={!isOpen}>
           <button
             type="button"
-            onClick={() => navigate('/profile')}
+            onClick={() => { if (isMobile) setIsOpen(false); navigate('/profile') }}
             className="mt-3 flex h-12 w-full min-w-0 items-center overflow-hidden rounded-full text-left transition hover:bg-[#F48E2E]/8 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F48E2E]/35"
             title={isOpen ? displayName : undefined}
           >
@@ -188,6 +206,7 @@ export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
           </button>
         </CollapsedTooltip>
       </div>
-    </motion.aside>
+      </motion.aside>
+    </>
   )
 }

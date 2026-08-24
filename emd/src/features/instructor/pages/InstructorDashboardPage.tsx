@@ -146,20 +146,7 @@ export default function InstructorDashboardPage() {
   const selectedCourse = courses.find((course) => course.id === selectedCourseId)
   const activeCourseCount = courses.filter((course) => course.is_active).length
   const submitted = visibleProjects.filter((project) => project.status !== 'draft').length
-  const guardrailReady = visibleProjects.filter((project) => project.current_step >= 3).length
   const reviewQueue = visibleProjects.filter((project) => project.status === 'submitted' || project.status === 'resubmitted').length
-  const progressPercent = visibleProjects.length > 0 ? Math.round((guardrailReady / visibleProjects.length) * 100) : 0
-  const stepCounts = {
-    setup: visibleProjects.filter((project) => project.current_step <= 1).length,
-    build: visibleProjects.filter((project) => project.current_step === 2).length,
-    output: visibleProjects.filter((project) => project.current_step >= 4).length,
-  }
-  const reportBars = normalizeBars([
-    stepCounts.setup,
-    stepCounts.build,
-    guardrailReady,
-    stepCounts.output,
-  ], 16)
   const reviewBars = normalizeBars([
     visibleProjects.filter((project) => project.status === 'draft').length,
     visibleProjects.filter((project) => project.status === 'submitted').length,
@@ -205,15 +192,11 @@ export default function InstructorDashboardPage() {
         submittedReady={submitted}
         students={enrolledStudents.length}
         studentPreviews={studentPreviews}
-        guardrailReady={guardrailReady}
-        stepCounts={stepCounts}
-        reportBars={reportBars}
         reviewBars={reviewBars}
         popularTopics={popularTopics.map(([label, count]) => ({ label, count }))}
         onStudentClick={(studentId) => navigate(`/instructor/student/${studentId}`)}
         onStudentsViewAll={() => navigate(selectedCourseId === ALL_COURSES ? '/instructor/students' : `/instructor/students?courseId=${selectedCourseId}`)}
         reviewQueue={reviewQueue}
-        progressPercent={progressPercent}
       />
 
       <section className="mt-7 min-w-0 2xl:mt-9">

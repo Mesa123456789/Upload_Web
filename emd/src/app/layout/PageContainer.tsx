@@ -1,11 +1,12 @@
 import Sidebar, { sidebarCollapsedWidth, sidebarExpandedWidth } from './Sidebar'
 import { motion, useReducedMotion } from 'framer-motion'
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Languages } from 'lucide-react'
+import { Home, Languages, Menu } from 'lucide-react'
 import { useAuth } from '../../features/auth/context/useAuth'
 import { useI18n } from '../../i18n/I18nProvider'
 import { pageVariants } from '../../shared/motion'
+import { useIsMobile } from './useIsMobile'
 
 interface PageContainerProps {
   children: React.ReactNode
@@ -27,18 +28,43 @@ function getInitialSidebarExpanded(pathname: string) {
 export default function PageContainer({ children, className = '' }: PageContainerProps) {
   const reduceMotion = useReducedMotion()
   const location = useLocation()
-  const [sidebarExpanded, setSidebarExpanded] = useState(() => getInitialSidebarExpanded(location.pathname))
+  const isMobile = useIsMobile()
+  const [sidebarExpanded, setSidebarExpanded] = useState(() => isMobile ? false : getInitialSidebarExpanded(location.pathname))
   const { profile } = useAuth()
   const { t, language, setLanguage } = useI18n()
   const isInstructor = profile?.role === 'instructor'
   const pageMeta = getPageMeta(location.pathname, t, isInstructor)
   const nextLanguage = language === 'th' ? 'en' : 'th'
   const sidebarSlideTransition = { duration: 0.3, ease: [0.4, 0, 0.2, 1] as const }
-  const sidebarWidth = sidebarExpanded ? sidebarExpandedWidth : sidebarCollapsedWidth
+  // The drawer overlays content on mobile instead of pushing it, so the
+  // header/main never reserve space for it there.
+  const sidebarWidth = isMobile ? 0 : (sidebarExpanded ? sidebarExpandedWidth : sidebarCollapsedWidth)
+
+  // The fixed header's height varies (the subtitle can wrap to 2-3 lines on
+  // a narrow phone, or when Thai/English text lengths differ), so main's
+  // top offset is measured from the real header instead of a guessed
+  // constant — a guessed constant overlapped content whenever the header
+  // grew taller than that guess.
+  const headerRef = useRef<HTMLElement>(null)
+  // Fallback matches the old static guess, so if the measurement below ever
+  // fails to land, layout degrades to the previous (mostly-correct)
+  // behavior instead of collapsing toward 0 and hiding content under the
+  // header entirely.
+  const [headerHeight, setHeaderHeight] = useState(112)
+
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const updateHeight = () => setHeaderHeight(el.offsetHeight)
+    updateHeight()
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
-    setSidebarExpanded(getInitialSidebarExpanded(location.pathname))
-  }, [location.pathname])
+    setSidebarExpanded(isMobile ? false : getInitialSidebarExpanded(location.pathname))
+  }, [location.pathname, isMobile])
 
   function setSidebarPreference(nextExpanded: boolean) {
     window.localStorage.setItem(sidebarPreferenceKey, nextExpanded ? 'open' : 'closed')
@@ -49,13 +75,22 @@ export default function PageContainer({ children, className = '' }: PageContaine
     <div className="min-h-screen bg-[var(--ds-bg)]">
       <Sidebar isOpen={sidebarExpanded} setIsOpen={setSidebarPreference} />
       <motion.section
+        ref={headerRef}
         initial={false}
         animate={{ left: sidebarWidth }}
         transition={sidebarSlideTransition}
         className="no-print fixed right-0 top-0 z-20 border-b border-slate-200/80 bg-white/92 px-4 py-3 shadow-[0_10px_24px_rgba(17,24,39,0.04)] backdrop-blur-xl sm:px-6 sm:py-3 lg:px-10 2xl:px-14"
       >
         <div className="flex min-w-0 items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => setSidebarPreference(true)}
+              className="grid h-9 w-9 shrink-0 place-content-center rounded-full text-[#7a3414] transition hover:bg-[#F48E2E]/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F48E2E]/35 md:hidden"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2 text-xs font-bold text-slate-400">
                 <Home className="h-3.5 w-3.5 shrink-0" />
@@ -86,10 +121,10 @@ export default function PageContainer({ children, className = '' }: PageContaine
         </div>
       </motion.section>
       <motion.main
-        initial={reduceMotion ? false : { ...pageVariants.initial, marginLeft: sidebarWidth }}
-        animate={reduceMotion ? { marginLeft: sidebarWidth } : { ...pageVariants.animate, marginLeft: sidebarWidth }}
+        initial={reduceMotion ? false : { ...pageVariants.initial, marginLeft: sidebarWidth, paddingTop: headerHeight + 20 }}
+        animate={reduceMotion ? { marginLeft: sidebarWidth, paddingTop: headerHeight + 20 } : { ...pageVariants.animate, marginLeft: sidebarWidth, paddingTop: headerHeight + 20 }}
         transition={sidebarSlideTransition}
-        className={`min-h-screen space-y-8 px-4 pb-10 pt-[118px] sm:px-6 sm:pb-12 sm:pt-[112px] lg:px-10 lg:pb-8 2xl:px-14 ${className}`}
+        className={`min-h-screen space-y-8 px-4 pb-10 sm:px-6 sm:pb-12 lg:px-10 lg:pb-8 2xl:px-14 ${className}`}
       >
         {children}
       </motion.main>

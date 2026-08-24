@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import Badge from '../../../shared/components/Badge'
+import FadeInCard from '../../../shared/components/FadeInCard'
 import { useI18n } from '../../../i18n/I18nProvider'
 import { useAuth } from '../../auth/context/useAuth'
 import {
@@ -26,9 +27,9 @@ interface EditForm {
 
 function UsersSkeleton() {
   return (
-    <div className="rounded-[28px] bg-white px-8 py-6 shadow-[0_18px_35px_rgba(17,24,39,0.08)]">
+    <div className="ds-card px-8 py-6">
       {Array.from({ length: 8 }).map((_, index) => (
-        <div key={index} className="grid grid-cols-5 gap-5 border-b border-[#e5e7eb] py-4 last:border-0">
+        <div key={index} className="grid grid-cols-5 gap-5 border-b border-line py-4 last:border-0">
           {Array.from({ length: 5 }).map((__, cell) => (
             <Skeleton key={cell} className="h-4" />
           ))}
@@ -49,9 +50,9 @@ function toEditForm(user: UserWithRoles): EditForm {
 }
 
 const selectClass =
-  'h-10 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#F48E2E]/40'
-const inputClass =
-  'h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#F48E2E]/40'
+  'h-10 rounded-full border border-line bg-white px-4 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/30'
+const inputClass = 'ds-input h-10'
+const smallButtonClass = 'ds-button min-h-0 px-3 py-1.5 text-xs'
 
 export default function AdminUsersPage() {
   const { t } = useI18n()
@@ -200,179 +201,182 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <h1 className="text-[26px] font-black tracking-tight text-[var(--ds-ink)]">{t('adminUsers.title')}</h1>
-      <p className="mt-1 text-sm text-slate-500">{t('adminUsers.subtitle')}</p>
-
       {error && (
-        <p className="mt-5 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>
+        <p className="mb-5 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>
       )}
 
-      <div className="mt-6 flex flex-wrap gap-3">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('adminUsers.searchPlaceholder')}
-          className={`${inputClass} w-56`}
-        />
-        <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
-          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterRole')})</option>
-          <option value="student">student</option>
-          <option value="instructor">instructor</option>
-          {roleCatalog.map((role) => (
-            <option key={role.name} value={role.name}>{role.name}</option>
-          ))}
-        </select>
-        <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass}>
-          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterCourse')})</option>
-          {courses.map((course) => (
-            <option key={course.id} value={course.id}>{course.title}</option>
-          ))}
-        </select>
-        <select value={majorFilter} onChange={(e) => setMajorFilter(e.target.value)} className={selectClass}>
-          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterMajor')})</option>
-          {majors.map((major) => (
-            <option key={major} value={major}>{major}</option>
-          ))}
-        </select>
-        <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} className={selectClass}>
-          <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterYear')})</option>
-          {years.map((year) => (
-            <option key={year} value={String(year)}>{year}</option>
-          ))}
-        </select>
-      </div>
+      <FadeInCard index={0}>
+        <div className="flex flex-wrap gap-3">
+          <div className="w-56">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t('adminUsers.searchPlaceholder')}
+              className={inputClass}
+            />
+          </div>
+          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className={selectClass}>
+            <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterRole')})</option>
+            <option value="student">student</option>
+            <option value="instructor">instructor</option>
+            {roleCatalog.map((role) => (
+              <option key={role.name} value={role.name}>{role.name}</option>
+            ))}
+          </select>
+          <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className={selectClass}>
+            <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterCourse')})</option>
+            {courses.map((course) => (
+              <option key={course.id} value={course.id}>{course.title}</option>
+            ))}
+          </select>
+          <select value={majorFilter} onChange={(e) => setMajorFilter(e.target.value)} className={selectClass}>
+            <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterMajor')})</option>
+            {majors.map((major) => (
+              <option key={major} value={major}>{major}</option>
+            ))}
+          </select>
+          <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)} className={selectClass}>
+            <option value="all">{t('adminUsers.filterAll')} ({t('adminUsers.filterYear')})</option>
+            {years.map((year) => (
+              <option key={year} value={String(year)}>{year}</option>
+            ))}
+          </select>
+        </div>
+      </FadeInCard>
 
-      <div className="mt-6 overflow-x-auto rounded-[28px] bg-white shadow-[0_18px_35px_rgba(17,24,39,0.08)]">
-        {loading ? (
-          <UsersSkeleton />
-        ) : (
-          <table className="w-full min-w-[960px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-[#e5e7eb] text-xs font-bold uppercase tracking-wide text-slate-400">
-                <th className="px-6 py-4">{t('adminUsers.name')}</th>
-                <th className="px-6 py-4">{t('adminUsers.email')}</th>
-                <th className="px-6 py-4">{t('adminUsers.primaryRole')}</th>
-                <th className="px-6 py-4">{t('adminUsers.extraRoles')}</th>
-                <th className="px-6 py-4">{t('adminUsers.status')}</th>
-                <th className="px-6 py-4" />
-              </tr>
-            </thead>
-            <tbody>
-              {filteredUsers.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
-                    {t('adminUsers.empty')}
-                  </td>
+      <FadeInCard index={1}>
+        <div className="mt-6 overflow-x-auto ds-card">
+          {loading ? (
+            <UsersSkeleton />
+          ) : (
+            <table className="w-full min-w-[960px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-line text-xs font-bold uppercase tracking-wide text-muted">
+                  <th className="px-6 py-4">{t('adminUsers.name')}</th>
+                  <th className="px-6 py-4">{t('adminUsers.email')}</th>
+                  <th className="px-6 py-4">{t('adminUsers.primaryRole')}</th>
+                  <th className="px-6 py-4">{t('adminUsers.extraRoles')}</th>
+                  <th className="px-6 py-4">{t('adminUsers.status')}</th>
+                  <th className="px-6 py-4" />
                 </tr>
-              )}
-              {filteredUsers.map((row) => {
-                const isPending = pendingUserId === row.id
-                const isSelf = row.id === user?.id
-                const isEditing = editingUserId === row.id
-                const availableRoles = roleCatalog.filter((role) => !row.extraRoles.includes(role.name))
+              </thead>
+              <tbody>
+                {filteredUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-center text-slate-400">
+                      {t('adminUsers.empty')}
+                    </td>
+                  </tr>
+                )}
+                {filteredUsers.map((row) => {
+                  const isPending = pendingUserId === row.id
+                  const isSelf = row.id === user?.id
+                  const isEditing = editingUserId === row.id
+                  const availableRoles = roleCatalog.filter((role) => !row.extraRoles.includes(role.name))
 
-                if (isEditing) {
+                  if (isEditing) {
+                    return (
+                      <tr key={row.id} className="border-b border-line bg-primary/5 last:border-0">
+                        <td className="px-6 py-4" colSpan={6}>
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                            <input className="ds-input" placeholder={t('adminUsers.name')} value={editForm.display_name} onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })} />
+                            <input className="ds-input" placeholder="Major" value={editForm.major} onChange={(e) => setEditForm({ ...editForm, major: e.target.value })} />
+                            <input className="ds-input" placeholder="Year" inputMode="numeric" value={editForm.year} onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
+                            <input className="ds-input" placeholder="Student code" value={editForm.student_code} onChange={(e) => setEditForm({ ...editForm, student_code: e.target.value })} />
+                            <input className="ds-input" placeholder="Contact" value={editForm.contact_info} onChange={(e) => setEditForm({ ...editForm, contact_info: e.target.value })} />
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <button type="button" disabled={isPending} onClick={() => saveEdit(row.id)} className={`${smallButtonClass} ds-button-primary`}>
+                              {t('adminUsers.save')}
+                            </button>
+                            <button type="button" disabled={isPending} onClick={cancelEdit} className={`${smallButtonClass} ds-button-secondary`}>
+                              {t('adminUsers.cancel')}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+
                   return (
-                    <tr key={row.id} className="border-b border-[#e5e7eb] bg-[#F48E2E]/5 last:border-0">
-                      <td className="px-6 py-4" colSpan={6}>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                          <input className={inputClass} placeholder={t('adminUsers.name')} value={editForm.display_name} onChange={(e) => setEditForm({ ...editForm, display_name: e.target.value })} />
-                          <input className={inputClass} placeholder="Major" value={editForm.major} onChange={(e) => setEditForm({ ...editForm, major: e.target.value })} />
-                          <input className={inputClass} placeholder="Year" inputMode="numeric" value={editForm.year} onChange={(e) => setEditForm({ ...editForm, year: e.target.value })} />
-                          <input className={inputClass} placeholder="Student code" value={editForm.student_code} onChange={(e) => setEditForm({ ...editForm, student_code: e.target.value })} />
-                          <input className={inputClass} placeholder="Contact" value={editForm.contact_info} onChange={(e) => setEditForm({ ...editForm, contact_info: e.target.value })} />
+                    <tr key={row.id} className="border-b border-line last:border-0">
+                      <td className="px-6 py-4 font-semibold text-slate-800">{row.display_name ?? '—'}</td>
+                      <td className="px-6 py-4 text-slate-500">{row.email}</td>
+                      <td className="px-6 py-4">
+                        <Badge variant={row.role === 'instructor' ? 'blue' : 'default'}>{row.role}</Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {row.extraRoles.length === 0 && (
+                            <span className="text-slate-400">{t('adminUsers.none')}</span>
+                          )}
+                          {row.extraRoles.map((role) => {
+                            const isAdminChip = role === 'admin'
+                            const chipDisabled = isPending || (isSelf && isAdminChip)
+                            return (
+                              <button
+                                key={role}
+                                type="button"
+                                disabled={chipDisabled}
+                                onClick={() => toggleRole(row, role)}
+                                title={t('adminUsers.confirmRevokeRole')}
+                                className="disabled:opacity-40"
+                              >
+                                <Badge variant="purple">{role} ×</Badge>
+                              </button>
+                            )
+                          })}
+                          {availableRoles.length > 0 && (
+                            <select
+                              value=""
+                              disabled={isPending}
+                              onChange={(e) => {
+                                if (e.target.value) toggleRole(row, e.target.value)
+                              }}
+                              className="h-7 rounded-full border border-line bg-white px-2 text-xs font-semibold text-slate-500 disabled:opacity-40"
+                            >
+                              <option value="">{t('adminUsers.addRole')}</option>
+                              {availableRoles.map((role) => (
+                                <option key={role.name} value={role.name}>{role.name}</option>
+                              ))}
+                            </select>
+                          )}
                         </div>
-                        <div className="mt-3 flex gap-2">
-                          <button type="button" disabled={isPending} onClick={() => saveEdit(row.id)} className="rounded-full bg-[#F48E2E] px-4 py-1.5 text-xs font-bold text-white disabled:opacity-40">
-                            {t('adminUsers.save')}
+                      </td>
+                      <td className="px-6 py-4">
+                        <Badge variant={row.is_active ? 'green' : 'red'}>
+                          {row.is_active ? t('adminUsers.statusActive') : t('adminUsers.statusInactive')}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => startEdit(row)}
+                            className={`${smallButtonClass} ds-button-secondary`}
+                          >
+                            {t('adminUsers.edit')}
                           </button>
-                          <button type="button" disabled={isPending} onClick={cancelEdit} className="rounded-full border border-slate-300 px-4 py-1.5 text-xs font-bold text-slate-600 disabled:opacity-40">
-                            {t('adminUsers.cancel')}
+                          <button
+                            type="button"
+                            disabled={isPending || isSelf}
+                            onClick={() => toggleActive(row)}
+                            className={`${smallButtonClass} ds-button-secondary`}
+                          >
+                            {row.is_active ? t('adminUsers.deactivate') : t('adminUsers.activate')}
                           </button>
                         </div>
                       </td>
                     </tr>
                   )
-                }
-
-                return (
-                  <tr key={row.id} className="border-b border-[#e5e7eb] last:border-0">
-                    <td className="px-6 py-4 font-semibold text-slate-800">{row.display_name ?? '—'}</td>
-                    <td className="px-6 py-4 text-slate-500">{row.email}</td>
-                    <td className="px-6 py-4">
-                      <Badge variant={row.role === 'instructor' ? 'blue' : 'default'}>{row.role}</Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {row.extraRoles.length === 0 && (
-                          <span className="text-slate-400">{t('adminUsers.none')}</span>
-                        )}
-                        {row.extraRoles.map((role) => {
-                          const isAdminChip = role === 'admin'
-                          const chipDisabled = isPending || (isSelf && isAdminChip)
-                          return (
-                            <button
-                              key={role}
-                              type="button"
-                              disabled={chipDisabled}
-                              onClick={() => toggleRole(row, role)}
-                              title={t('adminUsers.confirmRevokeRole')}
-                              className="disabled:opacity-40"
-                            >
-                              <Badge variant="purple">{role} ×</Badge>
-                            </button>
-                          )
-                        })}
-                        {availableRoles.length > 0 && (
-                          <select
-                            value=""
-                            disabled={isPending}
-                            onChange={(e) => {
-                              if (e.target.value) toggleRole(row, e.target.value)
-                            }}
-                            className="h-7 rounded-full border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-500 disabled:opacity-40"
-                          >
-                            <option value="">{t('adminUsers.addRole')}</option>
-                            {availableRoles.map((role) => (
-                              <option key={role.name} value={role.name}>{role.name}</option>
-                            ))}
-                          </select>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <Badge variant={row.is_active ? 'green' : 'red'}>
-                        {row.is_active ? t('adminUsers.statusActive') : t('adminUsers.statusInactive')}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => startEdit(row)}
-                          className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
-                        >
-                          {t('adminUsers.edit')}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isPending || isSelf}
-                          onClick={() => toggleActive(row)}
-                          className="rounded-full border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-40"
-                        >
-                          {row.is_active ? t('adminUsers.deactivate') : t('adminUsers.activate')}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </FadeInCard>
     </div>
   )
 }

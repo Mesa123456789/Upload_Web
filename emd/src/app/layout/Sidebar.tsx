@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../features/auth/context/useAuth'
 import { useI18n } from '../../i18n/I18nProvider'
+import CollapsedTooltip from './SidebarTooltip'
 
 export const sidebarCollapsedWidth = 68
 export const sidebarExpandedWidth = 280
@@ -33,25 +34,6 @@ export interface SidebarNavItem {
 export interface SidebarProps {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
-}
-
-interface TooltipProps {
-  children: React.ReactNode
-  label: string
-  enabled: boolean
-}
-
-function CollapsedTooltip({ children, label, enabled }: TooltipProps) {
-  return (
-    <span className="group relative flex min-w-0">
-      {children}
-      {enabled && (
-        <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-[60] -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#201316] px-2.5 py-1.5 text-xs font-bold text-white opacity-0 shadow-[0_10px_24px_rgba(32,19,22,0.22)] transition group-hover:opacity-100">
-          {label}
-        </span>
-      )}
-    </span>
-  )
 }
 
 export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {

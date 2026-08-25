@@ -1,7 +1,7 @@
 import { createContext, useEffect, useRef, useState } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../../../lib/supabase'
-import type { Profile } from '../../../lib/database.types'
+import type { Profile, AppRole } from '../../../lib/database.types'
 
 const previewAuth = import.meta.env.VITE_PREVIEW_AUTH === 'true'
 
@@ -14,6 +14,7 @@ const previewProfile: Profile = {
   student_code: '662110157',
   major: null,
   year: null,
+  is_active: true,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 }
@@ -37,14 +38,18 @@ interface AuthContextValue {
   user: User | null
   session: Session | null
   profile: Profile | null
+  roles: AppRole[]
+  isAdmin: boolean
+  deactivated: boolean
   loading: boolean
   setProfile: (profile: Profile | null) => void
 }
- 
+
 export const AuthContext = createContext<AuthContextValue | null>(null)
 
 function PreviewAuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(previewProfile)
+  const roles: AppRole[] = []
 
   return (
     <AuthContext.Provider
@@ -52,6 +57,9 @@ function PreviewAuthProvider({ children }: { children: React.ReactNode }) {
         user: previewSession.user,
         session: previewSession,
         profile,
+        roles,
+        isAdmin: false,
+        deactivated: false,
         loading: false,
         setProfile,
       }}
@@ -73,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [roles, setRoles] = useState<AppRole[]>([])
+  const [deactivated, setDeactivated] = useState(false)
   const [loading, setLoading] = useState(true)
   // sessionReady = true เมื่อ getSession()/onAuthStateChange ครั้งแรกตอบกลับมาแล้ว
   // (ไม่ว่าจะมี session หรือไม่) ใช้แยกจาก "loading" ของ profile
@@ -97,7 +107,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return null
     }
   }
- 
+
+  async function fetchRoles(userId: string): Promise<AppRole[]> {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+      if (error) {
+        console.error('[Auth] Fetch roles error:', error.message)
+        return []
+      }
+      return data.map((row) => row.role)
+    } catch (err) {
+      console.error('[Auth] Fetch roles exception:', err)
+      return []
+    }
+  }
+
   // ── Effect 1: จัดการ session/user เท่านั้น — ไม่เรียก fetchProfile ที่นี่ ──
   useEffect(() => {
     let mounted = true
@@ -149,6 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!newSession?.user) {
           lastFetchedUserIdRef.current = null
           setProfile(null)
+          setRoles([])
         }
         // กรณีมี user — ปล่อยให้ Effect 2 (ผูกกับ user?.id) เป็นคนเรียก
         // fetchProfile เอง ไม่เรียกที่นี่
@@ -181,10 +209,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     setLoading(true)
  
-    fetchProfile(user.id).then((p) => {
+    Promise.all([fetchProfile(user.id), fetchRoles(user.id)]).then(([p, r]) => {
       if (cancelled) return
       lastFetchedUserIdRef.current = user.id
+
+      if (p?.is_active === false) {
+        console.warn('[Auth] Account is deactivated — signing out')
+        setDeactivated(true)
+        setProfile(null)
+        setRoles([])
+        setSession(null)
+        setUser(null)
+        setLoading(false)
+        void supabase.auth.signOut({ scope: 'local' })
+        return
+      }
+
+      setDeactivated(false)
       setProfile(p)
+      setRoles(r)
       setLoading(false)
     })
  
@@ -194,7 +237,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [sessionReady, user])
  
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, setProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, roles, isAdmin: roles.includes('admin'), deactivated, loading, setProfile }}>
       {children}
     </AuthContext.Provider>
   )

@@ -162,6 +162,7 @@ export async function sendChatMessage(params: {
   history: ChatMessage[]
   liveDraft?: Partial<GddContext> | null
   providerOverride?: string | null
+  language?: 'th' | 'en'
   onChunk?: (fullText: string) => void
 }): Promise<{ reply: string; usage: unknown; provider: string }> {
   const context: GddContext = params.liveDraft
@@ -180,6 +181,7 @@ export async function sendChatMessage(params: {
       project: context,
       history: providerHistory,
       message: params.message,
+      language: params.language ?? 'th',
       ...(params.providerOverride ? { provider: params.providerOverride } : {}),
     }),
   })
@@ -211,6 +213,7 @@ export async function sendChatMessage(params: {
 export async function summarizeChat(params: {
   history: ChatMessage[]
   providerOverride?: string | null
+  language?: 'th' | 'en'
 }): Promise<{ suggestions: RawSuggestion[]; provider: string }> {
   const providerHistory = params.history.map((m) => ({
     role: m.role,
@@ -224,6 +227,7 @@ export async function summarizeChat(params: {
       mode: 'summarize',
       history: providerHistory,
       message: 'สรุปคำแนะนำจากบทสนทนาข้างต้นเป็น JSON array ตามรูปแบบที่กำหนด',
+      language: params.language ?? 'th',
       ...(params.providerOverride ? { provider: params.providerOverride } : {}),
     }),
   })

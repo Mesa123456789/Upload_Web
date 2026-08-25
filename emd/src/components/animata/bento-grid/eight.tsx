@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { BookOpen, Bot, CheckCircle2, FileText, FolderKanban, Users } from 'lucide-react'
+import { BookOpen, CheckCircle2, FolderKanban, Users } from 'lucide-react'
 import { useI18n } from '../../../i18n/I18nProvider'
 
 type StudentPreview = {
@@ -15,13 +15,6 @@ type BentoEightProps = {
   submittedReady: number
   students: number
   studentPreviews: StudentPreview[]
-  guardrailReady: number
-  stepCounts: {
-    setup: number
-    build: number
-    output: number
-  }
-  reportBars: number[]
   reviewBars: number[]
   popularTopics: Array<{
     label: string
@@ -30,7 +23,6 @@ type BentoEightProps = {
   onStudentClick?: (studentId: string) => void
   onStudentsViewAll?: () => void
   reviewQueue?: number
-  progressPercent?: number
 }
 
 function cn(...classes: Array<string | false | null | undefined>) {
@@ -54,7 +46,7 @@ function BentoCard({
       animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.45, delay: index * 0.045, ease: [0.22, 1, 0.36, 1] }}
       whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-      className={cn('relative h-full min-h-[148px] w-full overflow-hidden rounded-2xl p-4 shadow-sm', className)}
+      className={cn('relative h-full min-h-[148px] w-full overflow-hidden rounded-2xl p-4 shadow-sm sm:min-h-0', className)}
     >
       {children}
     </motion.div>
@@ -95,72 +87,6 @@ function Counter({
       {displayValue}
       {suffix}
     </span>
-  )
-}
-
-function TypingText({ text, waitTime = 800 }: { text: string; waitTime?: number }) {
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    let current = 0
-    let direction: 1 | -1 = 1
-    let timeout = 0
-
-    function tick() {
-      if (direction === 1 && current >= text.length) {
-        direction = -1
-      } else if (direction === -1 && current <= 0) {
-        direction = 1
-      } else {
-        current += direction
-        setCount(current)
-      }
-
-      const isAtEnd = current >= text.length
-      const isAtStart = current <= 0
-      timeout = window.setTimeout(tick, isAtEnd ? 1200 : isAtStart ? waitTime : direction === 1 ? 46 : 24)
-    }
-
-    timeout = window.setTimeout(tick, waitTime)
-    return () => window.clearTimeout(timeout)
-  }, [text, waitTime])
-
-  return <span>{text.slice(0, count)}</span>
-}
-
-function ReportPreview({ bars, submittedReady }: { bars: number[]; submittedReady: number }) {
-  const safeBars = bars.length > 0 ? bars : [0, 0, 0, 0]
-
-  return (
-    <motion.div
-      animate={{ y: [0, -3, 0] }}
-      transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
-      className="w-40 rounded-xl bg-white p-3 shadow-[0_12px_24px_rgba(17,24,39,0.12)]"
-    >
-      <div className="mb-3 flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-lime-200">
-          <FileText className="h-4 w-4 text-lime-800" />
-        </span>
-        <span className="h-2 w-20 rounded-full bg-slate-200" />
-      </div>
-      <div className="space-y-2">
-        <span className="block h-2 w-full rounded-full bg-slate-200" />
-        <span className="block h-2 w-4/5 rounded-full bg-slate-200" />
-        <span className="block h-2 w-11/12 rounded-full bg-slate-200" />
-      </div>
-      <div className="mt-4 grid grid-cols-4 gap-1">
-        {safeBars.slice(0, 4).map((height, index) => (
-          <motion.span
-            key={index}
-            className="mt-auto block rounded-t-md bg-lime-400"
-            initial={{ height: 12 }}
-            animate={{ height }}
-            transition={{ duration: 0.65, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-          />
-        ))}
-      </div>
-      <span className="sr-only">{submittedReady} submitted projects in report</span>
-    </motion.div>
   )
 }
 
@@ -285,22 +211,17 @@ export default function Eight({
   submittedReady,
   students,
   studentPreviews,
-  guardrailReady,
-  stepCounts,
-  reportBars,
   reviewBars,
   popularTopics,
   onStudentClick,
   onStudentsViewAll,
   reviewQueue = 0,
-  progressPercent = 0,
 }: BentoEightProps) {
   const { t } = useI18n()
-  const boundedProgress = Math.max(0, Math.min(100, progressPercent))
 
   return (
     <div className="w-full min-w-0">
-      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-12 sm:auto-rows-[132px] 2xl:auto-rows-[146px]">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-12 sm:auto-rows-[156px] 2xl:auto-rows-[168px]">
         <BentoCard index={0} className="flex flex-col bg-orange-500 sm:col-span-3">
           <BookOpen className="h-9 w-9 text-white" />
           <div className="mt-2 text-sm font-bold lowercase text-white">{t('dashboard.bento.course')}</div>
@@ -334,44 +255,7 @@ export default function Eight({
           </div>
         </BentoCard>
 
-        <BentoCard index={4} className="flex flex-col bg-white !p-3 sm:col-span-4">
-          <div className="mb-2 text-sm font-black leading-none text-slate-900">Project Progress</div>
-          <div className="flex flex-1 flex-col justify-between gap-0.5">
-          {[
-            { label: t('steps.setup'), count: stepCounts.setup },
-            { label: t('steps.build'), count: stepCounts.build },
-            { label: t('steps.guardrail'), count: guardrailReady },
-            { label: t('steps.output'), count: stepCounts.output },
-          ].map((item) => (
-            <div
-              key={item.label}
-              className="grid h-5 w-full grid-cols-[minmax(0,1fr)_auto] items-center rounded border border-slate-200 bg-slate-50 px-3 text-[11px] font-semibold leading-none text-slate-700"
-            >
-              <span className="truncate">{item.label}</span>
-              <span className="min-w-6 rounded bg-white px-1.5 py-0.5 text-center text-[11px] font-black tabular-nums text-slate-900 shadow-sm ring-1 ring-slate-200">{item.count}</span>
-            </div>
-          ))}
-          </div>
-        </BentoCard>
-
-        <BentoCard index={5} className="flex flex-col bg-orange-300 sm:col-span-2">
-          <motion.div
-            animate={{ y: [0, -3, 0], rotate: [0, -2, 2, 0] }}
-            transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <Bot className="h-9 w-9 text-orange-950" />
-          </motion.div>
-          <strong className="mt-2 inline-block text-sm font-bold text-orange-950">{t('dashboard.bento.integratedAi')}</strong>
-          <span className="sr-only">{t('dashboard.bento.guardrailReadiness', { percent: boundedProgress })}</span>
-          <div className="mt-auto">
-            <div className="text-xs font-medium leading-tight text-orange-950/80">{t('dashboard.bento.aiQuestion')}</div>
-            <div className="min-h-[1.25rem] text-sm font-semibold leading-tight text-orange-950">
-              <TypingText text={t('dashboard.bento.aiAnswer')} waitTime={500} />
-            </div>
-          </div>
-        </BentoCard>
-
-        <BentoCard index={6} className="flex flex-col bg-blue-500 sm:col-span-6">
+        <BentoCard index={4} className="flex flex-col bg-blue-500 sm:col-span-3">
           <div className="grid grid-cols-[1fr_auto] items-start gap-4">
             <div>
               <div className="text-sm font-bold text-white">{t('dashboard.bento.reviewQueue')}</div>
@@ -387,7 +271,7 @@ export default function Eight({
           </div>
         </BentoCard>
 
-        <BentoCard index={7} className="relative flex flex-col bg-blue-200 sm:col-span-8">
+        <BentoCard index={5} className="relative flex flex-col bg-blue-200 sm:col-span-9">
           <div>
             <div>
               <div className="text-sm font-bold text-blue-900">{t('dashboard.bento.popularTopic')}</div>
@@ -395,13 +279,6 @@ export default function Eight({
             </div>
           </div>
           <TopicBars topics={popularTopics} />
-        </BentoCard>
-
-        <BentoCard index={8} className="flex items-center gap-4 bg-lime-300 sm:col-span-4 md:flex-row-reverse">
-          <div className="text-2xl font-black leading-tight text-lime-900">{t('dashboard.bento.generateProgressReport')}</div>
-          <div className="relative max-h-32 shrink-0 overflow-hidden">
-            <ReportPreview bars={reportBars} submittedReady={submittedReady} />
-          </div>
         </BentoCard>
       </div>
     </div>

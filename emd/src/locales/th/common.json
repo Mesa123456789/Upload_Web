@@ -15,7 +15,8 @@
     "projects": "โปรเจกต์",
     "students": "นักศึกษา",
     "profile": "โปรไฟล์",
-    "openProfile": "เปิดโปรไฟล์"
+    "openProfile": "เปิดโปรไฟล์",
+    "admin": "จัดการระบบ"
   },
   "roles": {
     "student": "นักศึกษา",
@@ -74,6 +75,7 @@
       "missingSupabase": "ยังไม่ได้ตั้งค่า Supabase โปรดเพิ่ม VITE_SUPABASE_URL และ VITE_SUPABASE_ANON_KEY ในไฟล์ .env เพื่อใช้งานระบบล็อกอินและฐานข้อมูล",
       "cmuPending": "ระบบ CMU OAuth รอการตั้งค่า API",
       "googleFailed": "เข้าสู่ระบบไม่สำเร็จ โปรดลองอีกครั้ง",
+      "deactivated": "บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ",
       "features": {
         "courses": "รายวิชา",
         "projects": "โปรเจกต์",
@@ -237,6 +239,81 @@
     "projectCount_other": "{{projects}} โปรเจกต์ใน {{courses}} รายวิชา",
     "emptyProjects": "ไม่พบโปรเจกต์ของนักศึกษาคนนี้"
   },
+  "adminDashboard": {
+    "title": "แดชบอร์ดผู้ดูแลระบบ",
+    "subtitle": "ภาพรวมจำนวนผู้ใช้ทั้งหมดในระบบ",
+    "totalUsers": "ผู้ใช้ทั้งหมด",
+    "students": "นักศึกษา",
+    "instructors": "ผู้สอน",
+    "admins": "ผู้ดูแลระบบ",
+    "tas": "ผู้ช่วยสอน",
+    "loadFailed": "โหลดข้อมูลสถิติไม่สำเร็จ"
+  },
+  "adminUsers": {
+    "title": "จัดการผู้ใช้",
+    "subtitle": "ดูรายชื่อผู้ใช้ทั้งหมด และมอบ/ถอนสิทธิ์ role",
+    "email": "อีเมล",
+    "name": "ชื่อ",
+    "primaryRole": "Role หลัก",
+    "extraRoles": "Role เสริม",
+    "none": "ไม่มี",
+    "grantAdmin": "มอบสิทธิ์ Admin",
+    "revokeAdmin": "ถอนสิทธิ์ Admin",
+    "grantTa": "มอบสิทธิ์ TA",
+    "revokeTa": "ถอนสิทธิ์ TA",
+    "empty": "ยังไม่มีผู้ใช้ในระบบ",
+    "loadFailed": "โหลดรายชื่อผู้ใช้ไม่สำเร็จ",
+    "confirmGrant": "ยืนยันมอบสิทธิ์นี้ให้ผู้ใช้คนนี้?",
+    "confirmRevoke": "ยืนยันถอนสิทธิ์นี้จากผู้ใช้คนนี้?",
+    "actionFailed": "ทำรายการไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "filterRole": "กรองตาม Role",
+    "filterAll": "ทั้งหมด",
+    "searchPlaceholder": "ค้นหาชื่อหรืออีเมล",
+    "filterCourse": "กรองตามวิชา",
+    "filterMajor": "กรองตามสาขา",
+    "filterYear": "กรองตามชั้นปี",
+    "status": "สถานะ",
+    "statusActive": "ใช้งานอยู่",
+    "statusInactive": "ถูกระงับ",
+    "deactivate": "ระงับการใช้งาน",
+    "activate": "เปิดใช้งาน",
+    "confirmDeactivate": "ยืนยันระงับการใช้งานผู้ใช้คนนี้?",
+    "confirmActivate": "ยืนยันเปิดใช้งานผู้ใช้คนนี้อีกครั้ง?",
+    "edit": "แก้ไข",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "editFailed": "บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "addRole": "เพิ่ม role",
+    "confirmRevokeRole": "ยืนยันถอน role นี้จาก user คนนี้?"
+  },
+  "adminRoles": {
+    "title": "จัดการ Role",
+    "subtitle": "ดูรายชื่อ role ทั้งหมด และสร้าง role ใหม่",
+    "name": "ชื่อ (name)",
+    "namePlaceholder": "เช่น mentor, reviewer",
+    "label": "ป้ายชื่อ (label)",
+    "labelPlaceholder": "ชื่อที่แสดงในระบบ",
+    "description": "คำอธิบาย",
+    "descriptionPlaceholder": "ไม่บังคับ",
+    "builtin": "Built-in",
+    "create": "สร้าง Role",
+    "delete": "ลบ",
+    "empty": "ยังไม่มี role เสริมในระบบ",
+    "loadFailed": "โหลดรายชื่อ role ไม่สำเร็จ",
+    "createFailed": "สร้าง role ไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "deleteFailed": "ลบ role ไม่สำเร็จ ลองใหม่อีกครั้ง",
+    "deleteInUse": "ลบไม่ได้ เพราะยังมี user ถือ role นี้อยู่ ต้องถอนออกจาก user ทุกคนก่อน",
+    "confirmDelete": "ยืนยันลบ role นี้? (user ที่ถือ role นี้อยู่ต้องถูกถอนก่อน)",
+    "invalidName": "ชื่อ role ต้องเป็นตัวพิมพ์เล็ก a-z, 0-9, _ เท่านั้น ความยาว 2-32 ตัวอักษร และขึ้นต้นด้วยตัวอักษร",
+    "nameTaken": "มีชื่อ role นี้อยู่แล้ว"
+  },
+  "adminLayout": {
+    "title": "Admin Panel",
+    "dashboard": "แดชบอร์ด",
+    "users": "ผู้ใช้",
+    "roles": "Roles",
+    "backToApp": "กลับหน้าหลัก"
+  },
   "projects": {
     "myProjects": "โปรเจกต์ของฉัน",
     "allCourses": "ทุกรายวิชา",
@@ -357,7 +434,7 @@
     "deleteFailed": "ลบโปรเจกต์ไม่สำเร็จ",
     "projectNotFound": "ไม่พบโปรเจกต์",
     "pdf": {
-      "generatedBy": "สร้างโดย Ethical Monetization Designer",
+      "generatedBy": "สร้างโดย EMD — Ethical Monetization Designer",
       "page": "หน้า {{page}}",
       "exportDate": "วันที่ส่งออก: {{date}}",
       "risk": "ความเสี่ยง: {{level}} ({{score}}/10)",
@@ -464,6 +541,7 @@
     "more": "...เพิ่มเติม",
     "less": "ย่อ",
     "selected": "เลือกแล้ว: {{items}}",
+    "customGenrePlaceholder": "เพิ่มแนวเกมเอง...",
     "platform": "แพลตฟอร์ม",
     "customPlatformPlaceholder": "เพิ่มแพลตฟอร์มเอง...",
     "add": "เพิ่ม",
@@ -777,6 +855,7 @@
     "send": "ส่ง",
     "errorGeneric": "เกิดข้อผิดพลาดบางอย่าง",
     "projectRequired": "ต้องมีโปรเจกต์จริงก่อนถึงจะบันทึกคำแนะนำได้ กด Continue ที่หน้า Setup ก่อน",
-    "summarizeFailed": "สรุปไม่สำเร็จ"
+    "summarizeFailed": "สรุปไม่สำเร็จ",
+    "summarizeSuccess": "สรุปคำแนะนำจาก AI แล้ว ดูได้ที่ panel คำแนะนำ"
   }
 }

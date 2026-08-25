@@ -23,6 +23,7 @@ export interface Database {
           student_code: string | null   // student: student ID number
           major: string | null          // student: major/program
           year: number | null           // student: year of study
+          is_active: boolean
           created_at: string
           updated_at: string
         }
@@ -35,6 +36,7 @@ export interface Database {
           student_code?: string | null
           major?: string | null
           year?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -47,6 +49,7 @@ export interface Database {
           student_code?: string | null
           major?: string | null
           year?: number | null
+          is_active?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -400,6 +403,65 @@ export interface Database {
           }
         ]
       }
+      app_roles: {
+        Row: {
+          name: string
+          label: string
+          description: string | null
+          is_builtin: boolean
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          name: string
+          label: string
+          description?: string | null
+          is_builtin?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          name?: string
+          label?: string
+          description?: string | null
+          is_builtin?: boolean
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          user_id: string
+          role: string
+          granted_by: string | null
+          granted_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          role: string
+          granted_by?: string | null
+          granted_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          role?: string
+          granted_by?: string | null
+          granted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'user_roles_user_id_fkey'
+            columns: ['user_id']
+            isOneToOne: false
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          }
+        ]
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -419,3 +481,10 @@ export type AdPlacement = Database['public']['Tables']['ad_placements']['Row']
 export type IapConfig = Database['public']['Tables']['iap_configs']['Row']
 export type IapItem = Database['public']['Tables']['iap_items']['Row']
 export type Analysis = Database['public']['Tables']['analyses']['Row']
+export type UserRole = Database['public']['Tables']['user_roles']['Row']
+// Widened to `string` because role names are now created at runtime through
+// the app_roles catalog, not fixed at compile time. 'admin' stays a special
+// string used directly in code (AuthContext's isAdmin check, RLS has_role
+// calls) — it doesn't need its own literal type for that to keep working.
+export type AppRole = string
+export type AppRoleCatalogEntry = Database['public']['Tables']['app_roles']['Row']

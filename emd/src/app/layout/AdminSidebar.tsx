@@ -1,138 +1,63 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, type Transition } from 'framer-motion'
-import {
-  BookOpen,
-  CircleHelp,
-  ClipboardList,
-  LayoutDashboard,
-  Menu,
-  Plus,
-  Settings,
-  ShieldCheck,
-  Users,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowLeft, LayoutDashboard, Menu, Shield, ShieldCheck, Users } from 'lucide-react'
 import { useAuth } from '../../features/auth/context/useAuth'
 import { useI18n } from '../../i18n/I18nProvider'
 import CollapsedTooltip from './SidebarTooltip'
+import { sidebarCollapsedWidth, sidebarExpandedWidth, type SidebarNavItem } from './Sidebar'
 import { useIsMobile } from './useIsMobile'
 
-export const sidebarCollapsedWidth = 68
-export const sidebarExpandedWidth = 280
 const sidebarEase = [0.4, 0, 0.2, 1] as const
 const sidebarTransition: Transition = { duration: 0.3, ease: sidebarEase }
 const labelTransition: Transition = { duration: 0.18, ease: sidebarEase }
 
-export interface SidebarNavItem {
-  id: string
-  label: string
-  to: string
-  icon: LucideIcon
-  active: boolean
-}
-
-export interface SidebarProps {
+export interface AdminSidebarProps {
   isOpen: boolean
   setIsOpen: (open: boolean) => void
 }
 
-export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
-  const { profile, isAdmin } = useAuth()
+// Mirrors Sidebar.tsx (the main app shell) so the admin panel shares the
+// same look, collapse behavior, and interaction patterns instead of being a
+// visually separate dark-themed nav.
+export default function AdminSidebar({ isOpen, setIsOpen }: AdminSidebarProps) {
+  const { profile } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const isMobile = useIsMobile()
-  const isInstructor = profile?.role === 'instructor'
   const width = isOpen ? sidebarExpandedWidth : sidebarCollapsedWidth
 
-  const primaryAction = isInstructor
-    ? { label: t('instructorCourses.createNew'), to: '/instructor/courses' }
-    : { label: t('projects.createNew'), to: '/project/new' }
-
-  const roleItems: SidebarNavItem[] = isInstructor
-    ? [
-        {
-          id: 'dashboard',
-          label: t('navigation.dashboard'),
-          to: '/instructor/dashboard',
-          icon: LayoutDashboard,
-          active: location.pathname === '/' || location.pathname === '/instructor/dashboard',
-        },
-        {
-          id: 'courses',
-          label: t('instructorCourses.title'),
-          to: '/instructor/courses',
-          icon: BookOpen,
-          active: location.pathname.startsWith('/instructor/courses'),
-        },
-        {
-          id: 'projects',
-          label: t('navigation.projects'),
-          to: '/instructor/projects',
-          icon: ClipboardList,
-          active: location.pathname.startsWith('/instructor/projects') || location.pathname.startsWith('/instructor/project/'),
-        },
-        {
-          id: 'students',
-          label: t('navigation.students'),
-          to: '/instructor/students',
-          icon: Users,
-          active: location.pathname.startsWith('/instructor/students') || location.pathname.startsWith('/instructor/student/'),
-        },
-      ]
-    : [
-        {
-          id: 'dashboard',
-          label: t('navigation.dashboard'),
-          to: '/dashboard',
-          icon: LayoutDashboard,
-          active: location.pathname === '/' || location.pathname === '/dashboard',
-        },
-        {
-          id: 'projects',
-          label: t('navigation.projects'),
-          to: '/projects',
-          icon: ClipboardList,
-          active: location.pathname === '/projects' || location.pathname.startsWith('/project/'),
-        },
-        {
-          id: 'join-course',
-          label: t('projects.joinCourse'),
-          to: '/join',
-          icon: BookOpen,
-          active: location.pathname === '/join' || location.pathname.startsWith('/course/'),
-        },
-      ]
-
   const mainItems: SidebarNavItem[] = [
-    ...roleItems,
-    ...(isAdmin
-      ? [
-          {
-            id: 'admin',
-            label: t('navigation.admin'),
-            to: '/admin/dashboard',
-            icon: ShieldCheck,
-            active: location.pathname.startsWith('/admin'),
-          },
-        ]
-      : []),
+    {
+      id: 'dashboard',
+      label: t('adminLayout.dashboard'),
+      to: '/admin/dashboard',
+      icon: LayoutDashboard,
+      active: location.pathname === '/admin/dashboard',
+    },
+    {
+      id: 'users',
+      label: t('adminLayout.users'),
+      to: '/admin/users',
+      icon: Users,
+      active: location.pathname.startsWith('/admin/users'),
+    },
+    {
+      id: 'roles',
+      label: t('adminLayout.roles'),
+      to: '/admin/roles',
+      icon: Shield,
+      active: location.pathname.startsWith('/admin/roles'),
+    },
   ]
 
   const utilityItems: SidebarNavItem[] = [
     {
-      id: 'help',
-      label: 'Help',
-      to: isInstructor ? '/instructor/dashboard' : '/dashboard',
-      icon: CircleHelp,
+      id: 'back-to-app',
+      label: t('adminLayout.backToApp'),
+      to: '/',
+      icon: ArrowLeft,
       active: false,
-    },
-    {
-      id: 'settings',
-      label: 'Settings',
-      to: '/profile',
-      icon: Settings,
-      active: location.pathname.startsWith('/profile'),
     },
   ]
 
@@ -153,8 +78,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     </AnimatePresence>
   )
 
-  const displayName = profile?.display_name ?? profile?.email ?? t('roles.guest')
-  const code = profile?.student_code ?? (profile?.role ? t(`roles.${profile.role}`) : 'EMD')
+  const displayName = profile?.display_name ?? profile?.email ?? t('roles.admin')
   const initials = displayName
     .split(' ')
     .map((word) => word[0])
@@ -169,6 +93,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         <div className="w-full overflow-hidden">
           <NavLink
             to={item.to}
+            end={item.id === 'back-to-app'}
             onClick={() => { if (isMobile) setIsOpen(false) }}
             className={`group/item relative flex h-10 w-full min-w-0 items-center overflow-hidden whitespace-nowrap rounded-full text-sm font-semibold ${
               item.active ? 'border border-[#F48E2E]/45 bg-[#F48E2E]/12 text-[#7a3414] shadow-[0_8px_18px_rgba(244,142,46,0.14)]' : 'text-slate-600 hover:bg-[#F48E2E]/8 hover:text-[#7a3414]'
@@ -207,7 +132,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         transition={sidebarTransition}
         style={isMobile ? { width: sidebarExpandedWidth } : { width }}
         className="no-print fixed bottom-0 left-0 top-0 z-50 flex h-screen flex-col overflow-visible border-r-2 border-[#F48E2E]/70 bg-white px-3 py-3 text-slate-900 shadow-[14px_0_34px_rgba(244,142,46,0.12)]"
-        aria-label="Application sidebar"
+        aria-label="Admin sidebar"
       >
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center justify-between">
@@ -218,28 +143,27 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
             aria-label={isOpen ? 'Collapse navigation' : 'Expand navigation'}
             aria-expanded={isOpen}
           >
-            <img src="/camt-mark.png" alt={t('brand.camt')} className="h-7 w-7 object-contain opacity-100 transition group-hover/logo:opacity-0" />
+            <ShieldCheck className="h-6 w-6 text-[#F48E2E] opacity-100 transition group-hover/logo:opacity-0" strokeWidth={2.2} />
             <Menu className="absolute left-1/2 top-1/2 h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 text-[#7a3414] opacity-0 transition group-hover/logo:opacity-100" strokeWidth={2.3} />
             <span className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-[60] -translate-y-1/2 whitespace-nowrap rounded-lg bg-[#201316] px-2.5 py-1.5 text-xs font-black text-white opacity-0 shadow-[0_10px_24px_rgba(32,19,22,0.22)] transition group-hover/logo:opacity-100">
               {isOpen ? 'Collapse' : 'Expand'}
             </span>
           </button>
-        </div>
-
-        <div className="mt-5 shrink-0">
-          <CollapsedTooltip label={primaryAction.label} enabled={!isOpen}>
-            <button
-              type="button"
-              onClick={() => { if (isMobile) setIsOpen(false); navigate(primaryAction.to) }}
-              className="flex h-11 w-full min-w-0 items-center overflow-hidden rounded-full bg-[#facc15] text-sm font-black text-[#302226] shadow-[0_12px_28px_rgba(250,204,21,0.18)] transition hover:bg-[#f4bd0a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F48E2E]/35"
-              aria-label={primaryAction.label}
-            >
-              <span className="relative grid h-11 w-11 shrink-0 place-content-center">
-                <Plus className="h-4 w-4 text-[#302226]" strokeWidth={2.35} />
-              </span>
-              {renderLabel(primaryAction.label)}
-            </button>
-          </CollapsedTooltip>
+          <AnimatePresence initial={false}>
+            {isOpen && (
+              <motion.div
+                key="admin-brand"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={labelTransition}
+                className="min-w-0 overflow-hidden whitespace-nowrap pr-2 text-right"
+              >
+                <p className="ds-one-line text-sm font-black leading-none text-slate-900">EMD</p>
+                <p className="ds-one-line mt-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{t('adminLayout.title')}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <nav className="mt-5 shrink-0 space-y-1 overflow-hidden">
@@ -275,7 +199,7 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                   className="min-w-0 overflow-hidden whitespace-nowrap"
                 >
                   <span className="ds-one-line block text-sm font-black text-slate-900">{displayName}</span>
-                  <span className="ds-one-line mt-0.5 block text-xs font-semibold text-slate-500">{code}</span>
+                  <span className="ds-one-line mt-0.5 block text-xs font-semibold text-slate-500">{t('roles.admin')}</span>
                 </motion.span>
               )}
             </AnimatePresence>

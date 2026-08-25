@@ -60,6 +60,7 @@ export default function SetupPage() {
   const [showMoreGenres, setShowMoreGenres] = useState(false)
   const [title, setTitle] = useState('')
   const [genre, setGenre] = useState<string[]>([])
+  const [customGenre, setCustomGenre] = useState('')
   const [platform, setPlatform] = useState<string[]>([])
   const [customPlatform, setCustomPlatform] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
@@ -123,6 +124,20 @@ export default function SetupPage() {
     if (!nextPlatform) return
     setPlatform((current) => current.includes(nextPlatform) ? current : [...current, nextPlatform])
     setCustomPlatform('')
+  }
+
+  function addCustomGenre() {
+    const nextGenre = customGenre.trim()
+    if (!nextGenre) return
+    setGenre((current) => current.includes(nextGenre) ? current : [...current, nextGenre])
+    setCustomGenre('')
+  }
+
+  // Custom genres typed by the user aren't in the genreOptions dictionary,
+  // so optionLabel() would fall back to showing the raw i18n key string —
+  // pass those through as-is instead of translating.
+  function genreLabel(item: string) {
+    return MAIN_GENRES.includes(item) || MORE_GENRES.includes(item) ? optionLabel('genreOptions', item) : item
   }
 
   // logic เซฟกลาง — ใช้ทั้ง Save Draft และ Continue
@@ -283,26 +298,68 @@ export default function SetupPage() {
                   </button>
                 </div>
                 {showMoreGenres && (
-                  <div className="mt-3 flex flex-wrap gap-2 rounded-lg border border-line bg-slate-50 p-3">
-                    {MORE_GENRES.map((item) => (
+                  <div className="mt-3 rounded-lg border border-line bg-slate-50 p-3">
+                    <div className="flex flex-wrap gap-2">
+                      {MORE_GENRES.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setGenre(toggleArrayItem(genre, item))}
+                          className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
+                            genre.includes(item)
+                              ? 'border-primary bg-primary text-white'
+                              : 'border-line bg-white text-slate-600 hover:border-primary/30'
+                          }`}
+                        >
+                      {optionLabel('genreOptions', item)}
+                        </button>
+                      ))}
+                      {genre.filter((item) => !MAIN_GENRES.includes(item) && !MORE_GENRES.includes(item)).map((item) => (
+                        // Custom genres have no "source list" to fall back to when
+                        // unselected, so they only have one state: present = selected.
+                        // Clicking removes it from the array outright instead of toggling.
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => setGenre((current) => current.filter((g) => g !== item))}
+                          className="relative rounded-md border border-primary bg-primary px-3 py-2 text-sm font-bold text-white transition hover:bg-primary/90"
+                          aria-label={`Remove custom genre ${item}`}
+                        >
+                          {item}
+                          <span
+                            className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-white bg-yellow-400"
+                            aria-hidden="true"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <input
+                        type="text"
+                        value={customGenre}
+                        onChange={(event) => setCustomGenre(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            addCustomGenre()
+                          }
+                        }}
+                        placeholder={t('setup.customGenrePlaceholder')}
+                        className={`${inputClass} min-w-0`}
+                      />
                       <button
-                        key={item}
                         type="button"
-                        onClick={() => setGenre(toggleArrayItem(genre, item))}
-                        className={`rounded-md border px-3 py-2 text-sm font-bold transition ${
-                          genre.includes(item)
-                            ? 'border-primary bg-primary text-white'
-                            : 'border-line bg-white text-slate-600 hover:border-primary/30'
-                        }`}
+                        onClick={addCustomGenre}
+                        className="shrink-0 rounded-lg border border-primary/30 bg-orange-50 px-4 py-2 text-sm font-black text-primary transition hover:border-primary hover:bg-orange-100"
                       >
-                    {optionLabel('genreOptions', item)}
+                        {t('setup.add')}
                       </button>
-                    ))}
+                    </div>
                   </div>
                 )}
                 {genre.length > 0 && (
                   <p className="mt-2 text-xs font-semibold text-slate-500">
-                    {t('setup.selected', { items: genre.map((item) => optionLabel('genreOptions', item)).join(', ') })}
+                    {t('setup.selected', { items: genre.map((item) => genreLabel(item)).join(', ') })}
                   </p>
                 )}
               </div>

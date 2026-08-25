@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { router } from './app/router'
 import { AuthProvider } from './features/auth/context/AuthContext'
 import { I18nProvider } from './i18n/I18nProvider'
+import DevDebugToolkit from './shared/components/DevDebugToolkit'
 import './index.css'
 
 const rootElement = document.getElementById('root')
@@ -16,6 +17,7 @@ createRoot(rootElement).render(
       <AuthProvider>
         <RouterProvider router={router} />
         <Toaster position="top-right" richColors offset={{ top: 88 }} />
+        <DevDebugToolkit />
       </AuthProvider>
     </I18nProvider>
   </StrictMode>,

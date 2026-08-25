@@ -1,9 +1,8 @@
 ﻿import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
-import jsPDF from 'jspdf'
-import { registerThaiFont } from '../../../lib/pdf-thai-font'
-import { preloadThaiFonts, drawThaiText, drawThaiTextLines, wrapThaiText } from '../../../lib/thai-text-renderer'
 import { loadSuggestions } from '../services/chat.service'
+import type { RawSuggestion } from '../services/chat.service'
 import {
   getProject,
   updateProject,
@@ -25,6 +24,7 @@ import { useI18n } from '../../../i18n/I18nProvider'
 import StepIndicator from './components/StepIndicator'
 import AiSuggestionPanel from './components/AiSuggestionPanel'
 import FadeInCard from '../../../shared/components/FadeInCard'
+import OutputPrintSheet from './components/OutputPrintSheet'
 
 type PdfExportMode = 'data' | 'ai'
 
@@ -78,6 +78,8 @@ export default function OutputPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [printMode, setPrintMode] = useState<PdfExportMode | null>(null)
+  const [printAiSuggestions, setPrintAiSuggestions] = useState<RawSuggestion[]>([])
 
   useEffect(() => {
     async function load() {
@@ -109,6 +111,35 @@ export default function OutputPage() {
     }
     load()
   }, [projectId])
+
+  useEffect(() => {
+    if (!printMode || !project) return
+
+    const originalTitle = document.title
+    const safeFileName = project.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'project'
+    document.title = `emd-${safeFileName}${printMode === 'ai' ? '-ai-recommendations' : ''}`
+
+    function handleAfterPrint() {
+      document.title = originalTitle
+      setPrintMode(null)
+    }
+    window.addEventListener('afterprint', handleAfterPrint)
+
+    let frame1 = 0
+    let frame2 = 0
+    frame1 = requestAnimationFrame(() => {
+      frame2 = requestAnimationFrame(() => {
+        window.print()
+      })
+    })
+
+    return () => {
+      window.removeEventListener('afterprint', handleAfterPrint)
+      document.title = originalTitle
+      cancelAnimationFrame(frame1)
+      cancelAnimationFrame(frame2)
+    }
+  }, [printMode])
 
   async function handleSubmit() {
     if (!projectId || !project) return
@@ -154,32 +185,62 @@ export default function OutputPage() {
   function handleExportCSV() {
     if (!project) return
     const rows: string[][] = [
-      ['Field', 'Value'],
-      ['Game Title', project.title],
-      ['Genre', (project.genre ?? []).join(', ')],
-      ['Platform', (project.platform ?? []).join(', ')],
-      ['Target Audience', project.target_audience ?? ''],
-      ['Core Mechanic', project.core_mechanic ?? ''],
-      ['Session Length', project.session_length ?? ''],
-      ['Ad Network', adsConfig?.ad_network ?? ''],
-      ['Revenue Model', adsConfig?.revenue_model ?? ''],
+      [t('output.pdf.projectContext')],
+      [t('output.pdf.field'), t('output.pdf.value')],
+      [t('output.pdf.gameTitle'), project.title],
+      [t('output.pdf.genre'), (project.genre ?? []).join(', ')],
+      [t('output.pdf.platform'), (project.platform ?? []).join(', ')],
+      [t('output.pdf.targetAudience'), project.target_audience ?? ''],
+      [t('output.pdf.coreLoop'), project.core_mechanic ?? ''],
+      [t('output.pdf.session'), project.session_length ?? ''],
       [],
-      ['Ad Placements'],
-      ['Type', 'Trigger Point', 'Frequency Cap'],
+      [t('output.pdf.adsStrategy')],
+      [t('output.pdf.type'), t('output.pdf.triggerMoment'), t('output.pdf.frequencyCap'), t('output.pdf.notes')],
       ...adPlacements.map((placement) => [
         placement.placement_type,
         placement.trigger_point ?? '',
-        placement.frequency_cap?.toString() ?? '',
+        placement.frequency_cap == null ? t('output.pdf.missing') : t('output.pdf.perSession', { count: String(placement.frequency_cap) }),
+        placement.notes ?? '',
       ]),
       [],
-      ['IAP Items'],
-      ['Name', 'Type', 'Price USD', 'Description'],
+      [t('output.pdf.iapCatalog')],
+      [t('output.pdf.item'), t('output.pdf.type'), t('output.pdf.price'), t('output.pdf.benefitDescription')],
       ...iapItems.map((item) => [
         item.name,
-        item.item_type,
-        item.price_usd?.toString() ?? '',
+        item.item_type.replace('_', ' '),
+        item.price_usd != null ? `$${item.price_usd.toFixed(2)}` : '',
         item.description ?? '',
       ]),
+      [],
+      [t('output.pdf.configurationNotes')],
+      [t('output.pdf.area'), t('output.pdf.field'), t('output.pdf.value')],
+      [t('build.ads'), t('output.pdf.adNetwork'), adsConfig?.ad_network ?? ''],
+      [t('build.ads'), t('output.pdf.revenueModel'), adsConfig?.revenue_model ?? ''],
+      [t('build.ads'), t('output.pdf.notes'), adsConfig?.notes ?? ''],
+      [t('build.iap'), t('output.pdf.storeField'), iapConfig?.store?.replace('_', ' ') ?? ''],
+      [t('build.iap'), t('output.pdf.currency'), iapConfig?.currency ?? ''],
+      [t('build.iap'), t('output.pdf.notes'), iapConfig?.notes ?? ''],
+      [],
+      [t('output.pdf.caseForEthics')],
+      [t('output.pdf.check'), t('output.pdf.result'), t('output.pdf.explanation')],
+      [
+        t('output.pdf.frequencyCap'),
+        missingCaps === 0 ? t('output.pdf.pass') : t('output.pdf.capsNeed', { count: String(missingCaps) }),
+        t('output.pdf.capsExplanation'),
+      ],
+      [t('output.pdf.optionalValue'), t('output.pdf.pass'), t('output.pdf.optionalValueExplanation')],
+      [
+        t('output.pdf.priceClarity'),
+        iapItems.every((item) => item.price_usd != null && item.description) ? t('output.pdf.pass') : t('output.pdf.needsReview'),
+        t('output.pdf.priceClarityExplanation'),
+      ],
+      [t('output.pdf.pressureLevel'), riskLabel, t('output.pdf.pressureExplanation')],
+      [],
+      [t('output.feedback.title')],
+      [t('output.pdf.field'), t('output.pdf.value')],
+      [t('projects.table.status'), t(`status.${project.status}`)],
+      [t('output.pdf.grade'), project.grade == null ? t('output.pdf.notGraded') : `${project.grade}/100`],
+      [t('output.pdf.comment'), project.instructor_comment || t('output.pdf.noInstructorComment')],
     ]
 
     const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n')
@@ -198,385 +259,10 @@ export default function OutputPage() {
 
   async function handleExportPDF(mode: PdfExportMode) {
     if (!project) return
-    // à¹‚à¸«à¸¥à¸”à¸Ÿà¸­à¸™à¸•à¹Œ Sarabun à¹€à¸‚à¹‰à¸² browser à¸à¹ˆà¸­à¸™ (à¸ªà¸³à¸«à¸£à¸±à¸š canvas rendering) â€” à¸•à¹‰à¸­à¸‡à¸£à¸­
-    // à¹ƒà¸«à¹‰à¹€à¸ªà¸£à¹‡à¸ˆà¸à¹ˆà¸­à¸™à¹€à¸£à¸´à¹ˆà¸¡à¸§à¸²à¸”à¸­à¸°à¹„à¸£à¹€à¸¥à¸¢ à¹„à¸¡à¹ˆà¸‡à¸±à¹‰à¸™ canvas à¸ˆà¸° fallback à¹„à¸›à¸Ÿà¸­à¸™à¸•à¹Œ default
-    await preloadThaiFonts()
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true })
-    registerThaiFont(doc)
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const margin = 14
-    const contentWidth = pageWidth - margin * 2 // 182mm
-    const orange: [number, number, number] = [245, 130, 32]
-    const ink: [number, number, number] = [35, 31, 27]
-    const muted: [number, number, number] = [76, 93, 116]
-    const lineColor: [number, number, number] = [225, 213, 201]
-    const warm: [number, number, number] = [247, 241, 234]
-    const panel: [number, number, number] = [252, 249, 245]
-    let y = 16
-
-    const value = (text: string | number | null | undefined, fallback = 'Not set') => {
-      if (text === null || text === undefined || text === '') return fallback
-      return String(text)
-    }
-    const list = (items: string[] | null | undefined) => items?.join(', ') || 'Not set'
-    const money = (amount: number | null) => amount == null ? 'Free / not specified' : `$${amount.toFixed(2)}`
-    const safeFileName = project.title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'project'
-    const exportDate = new Date().toISOString().slice(0, 10)
-    const totalItems = adPlacements.length + iapItems.length
-    const pdfAdPercent = totalItems ? Math.round((adPlacements.length / totalItems) * 100) : 0
-    const pdfIapPercent = totalItems ? 100 - pdfAdPercent : 0
-    const missingCaps = adPlacements.filter((placement) => placement.frequency_cap == null).length
-    const interstitials = adPlacements.filter((placement) => placement.placement_type === 'interstitial').length
-    const riskScore = Math.min(10, missingCaps * 3 + interstitials * 2 + Math.max(0, iapItems.length - 3))
-    const riskLabel = riskScore >= 7 ? t('build.levels.high') : riskScore >= 4 ? t('build.levels.medium') : t('build.levels.low')
-    const vagueItems = iapItems.filter((item) => !item.description).length
-    const unpricedItems = iapItems.filter((item) => item.price_usd == null).length
-
-    // à¸”à¸¶à¸‡à¸„à¸³à¹à¸™à¸°à¸™à¸³ AI à¸ˆà¸£à¸´à¸‡à¸ˆà¸²à¸ Supabase (ai_suggestions) â€” à¹€à¸‰à¸žà¸²à¸°à¸•à¸­à¸™ export AI PDF
-    const rawSuggestions = mode === 'ai' ? await loadSuggestions(project.id) : []
-    const categoryLabels: Record<string, string> = {
-      title: t('setup.gameTitle'),
-      genre: t('setup.genre'),
-      platform: t('setup.platform'),
-      target_audience: t('setup.targetAudience'),
-      core_mechanic: t('setup.coreLoop'),
-      session_length: t('setup.sessionLength'),
-      revenue_mix: t('output.pdf.revenueMix'),
-      monetization_design: t('output.flow.title'),
-    }
-    const aiSuggestions: string[][] = rawSuggestions.map((s) => [
-      categoryLabels[s.category] ?? s.category,
-      s.advice,
-    ])
-
-    // à¸„à¸§à¸²à¸¡à¸ªà¸¹à¸‡à¸šà¸£à¸£à¸—à¸±à¸”à¸ˆà¸£à¸´à¸‡ (mm) à¸•à¸²à¸¡ fontSize à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™ â€” à¸•à¹‰à¸­à¸‡à¸«à¸²à¸£à¸”à¹‰à¸§à¸¢ scaleFactor
-    // à¹€à¸žà¸£à¸²à¸° doc.getLineHeight() à¸„à¸·à¸™à¸„à¹ˆà¸²à¹ƒà¸™à¸«à¸™à¹ˆà¸§à¸¢à¸ à¸²à¸¢à¹ƒà¸™à¸‚à¸­à¸‡ jsPDF (pt-equivalent)
-    function lineHeightMm(): number {
-      return doc.getLineHeight() / doc.internal.scaleFactor
-    }
-
-    function addPageIfNeeded(height = 24) {
-      if (y + height <= pageHeight - 14) return
-      doc.addPage()
-      y = 16
-      footer()
-    }
-
-    function footer() {
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10)
-      drawThaiText(doc, t('output.pdf.generatedBy'), margin, pageHeight - 5, {
-        fontSize: 8,
-        color: muted,
-      })
-      drawThaiText(doc, t('output.pdf.page', { page: String(doc.getNumberOfPages()) }), pageWidth - margin, pageHeight - 5, {
-        fontSize: 8,
-        color: muted,
-        align: 'right',
-      })
-    }
-
-    function title(text: string, size = 13) {
-      addPageIfNeeded(14)
-      drawThaiText(doc, text, margin, y, { fontSize: size, bold: true, color: ink })
-      y += 4
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.line(margin, y, pageWidth - margin, y)
-      y += 6
-    }
-
-    function paragraph(text: string, x: number, width: number, size = 9, color: [number, number, number] = muted) {
-      const lines = wrapThaiText(text, width, size, false)
-      const lh = lineHeightMm()
-      drawThaiTextLines(doc, lines, x, y, lh, { fontSize: size, color })
-      y += lines.length * lh
-    }
-
-    function card(x: number, top: number, width: number, height: number) {
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.setFillColor(panel[0], panel[1], panel[2])
-      doc.roundedRect(x, top, width, height, 3, 3, 'FD')
-    }
-
-    function keyValue(label: string, detail: string, x: number, top: number, width: number) {
-      drawThaiText(doc, label.toUpperCase(), x, top, { fontSize: 8, bold: true, color: muted })
-      const lines = wrapThaiText(detail, width, 9, false)
-      const lh = lineHeightMm()
-      drawThaiTextLines(doc, lines, x, top + 5, lh, { fontSize: 9, bold: true, color: ink })
-    }
-
-    function table(headers: string[], rows: string[][], widths: number[]) {
-      const startX = margin
-      const headerHeight = 9
-      addPageIfNeeded(headerHeight + 10)
-      doc.setFillColor(warm[0], warm[1], warm[2])
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.rect(startX, y, contentWidth, headerHeight, 'FD')
-
-      let x = startX
-      headers.forEach((header, index) => {
-        drawThaiText(doc, header, x + 3, y + 5.8, { fontSize: 8.5, bold: true, color: ink })
-        x += widths[index]
-      })
-      y += headerHeight
-
-      if (rows.length === 0) {
-        rows = [['No data added yet.', '', '', ''].slice(0, headers.length)]
-      }
-
-      rows.forEach((row, rowIndex) => {
-        const wrapped = row.map((cell, index) => wrapThaiText(value(cell, '-'), widths[index] - 6, 8.5, false))
-        const lh = lineHeightMm()
-        const rowHeight = Math.max(9, ...wrapped.map((lines) => lines.length * lh + 4.5))
-        addPageIfNeeded(rowHeight + 4)
-
-        if (rowIndex % 2 === 0) {
-          doc.setFillColor(255, 255, 255)
-        } else {
-          doc.setFillColor(252, 250, 247)
-        }
-
-        doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-        doc.rect(startX, y, contentWidth, rowHeight, 'FD')
-
-        let cellX = startX
-        wrapped.forEach((lines, index) => {
-          drawThaiTextLines(doc, lines, cellX + 3, y + 5.5, lh, { fontSize: 8.5, color: muted })
-          cellX += widths[index]
-        })
-        y += rowHeight
-      })
-      y += 5
-    }
-
     if (mode === 'ai') {
-      doc.setFillColor(warm[0], warm[1], warm[2])
-      doc.rect(0, 0, pageWidth, 42, 'F')
-      doc.setFillColor(orange[0], orange[1], orange[2])
-      doc.roundedRect(margin, 12, 16, 16, 3, 3, 'F')
-      drawThaiText(doc, 'AI', margin + 8, 20.5, { fontSize: 12, bold: true, color: [255, 255, 255], align: 'center', baseline: 'middle' })
-      drawThaiText(doc, project.title, margin + 22, 18, { fontSize: 19, bold: true, color: ink })
-      drawThaiText(doc, t('output.pdf.aiSubtitle'), margin + 22, 24, { fontSize: 9, color: muted })
-      drawThaiText(doc, t('output.pdf.exportDate', { date: exportDate }), pageWidth - margin, 18, { fontSize: 9, color: muted, align: 'right' })
-      drawThaiText(doc, t('output.pdf.risk', { level: riskLabel, score: String(riskScore) }), pageWidth - margin, 24, { fontSize: 9, color: muted, align: 'right' })
-      y = 50
-
-      const aiSummaryText = riskScore >= 7
-        ? t('output.pdf.aiSummaryHigh')
-        : t('output.pdf.aiSummaryReady')
-
-      const aiSummaryLines = wrapThaiText(aiSummaryText, contentWidth - 10, 9, false)
-      const aiCardHeight = 16 + aiSummaryLines.length * lineHeightMm()
-
-      card(margin, y, contentWidth, aiCardHeight)
-      drawThaiText(doc, t('output.pdf.aiSummaryTitle'), margin + 5, y + 9, { fontSize: 14, bold: true, color: ink })
-      const oldY = y
-      y += 15
-      paragraph(aiSummaryText, margin + 5, contentWidth - 10, 9)
-      y = oldY + aiCardHeight + 8
-
-      title(t('output.pdf.recommendedFixes'))
-      table(
-        [t('output.pdf.category'), t('output.pdf.aiRecommendation')],
-        aiSuggestions.length > 0 ? aiSuggestions : [[t('output.pdf.noAiSuggestion'), t('output.pdf.noAiSuggestionHelp')]],
-        [40, 142],
-      )
-
-      title(t('output.pdf.suggestedPitch'))
-      paragraph(
-        t('output.pdf.suggestedPitchBody', { title: project.title }),
-        margin,
-        contentWidth,
-        10
-      )
-      y += 5
-
-      title(t('output.pdf.dataSnapshot'))
-      table(
-        [t('output.pdf.metric'), t('output.pdf.currentValue')],
-        [
-          [t('output.pdf.gameTitle'), project.title],
-          [t('output.pdf.genre'), list(project.genre)],
-          [t('output.pdf.platform'), list(project.platform)],
-          [t('output.pdf.targetAudience'), value(project.target_audience)],
-          [t('output.pdf.adPlacements'), `${adPlacements.length}`],
-          [t('output.pdf.iapItems'), `${iapItems.length}`],
-          [t('output.pdf.missingAdCaps'), `${missingCaps}`],
-          [t('output.pdf.interstitialPlacements'), `${interstitials}`],
-          [t('output.pdf.unclearIapBenefit'), `${vagueItems}`],
-          [t('output.pdf.missingIapPrice'), `${unpricedItems}`],
-        ],
-        [62, 120]
-      )
-
-      title(t('output.pdf.finalChecklist'))
-      table(
-        [t('output.pdf.check'), t('output.pdf.recommendedStandard')],
-        [
-          [t('output.pdf.frequencyCap'), t('output.pdf.frequencyCapStandard')],
-          [t('output.pdf.optionality'), t('output.pdf.optionalityStandard')],
-          [t('output.pdf.priceClarity'), t('output.pdf.priceClarityStandard')],
-          [t('output.pdf.pitchEvidence'), t('output.pdf.pitchEvidenceStandard')],
-        ],
-        [52, 130]
-      )
-
-      footer()
-      doc.save(`emd-${safeFileName}-ai-recommendations.pdf`)
-      return
+      setPrintAiSuggestions(await loadSuggestions(project.id))
     }
-
-    // ================= DATA MODE ================= //
-    doc.setFillColor(warm[0], warm[1], warm[2])
-    doc.rect(0, 0, pageWidth, 42, 'F')
-    doc.setFillColor(orange[0], orange[1], orange[2])
-    doc.roundedRect(margin, 12, 16, 16, 3, 3, 'F')
-    drawThaiText(doc, 'EMD', margin + 8, 20.5, { fontSize: 10, bold: true, color: [255, 255, 255], align: 'center', baseline: 'middle' })
-    drawThaiText(doc, project.title, margin + 22, 18, { fontSize: 19, bold: true, color: ink })
-    drawThaiText(doc, t('output.pdf.dataSubtitle'), margin + 22, 24, { fontSize: 9, color: muted })
-    drawThaiText(doc, t('output.pdf.exportDate', { date: exportDate }), pageWidth - margin, 18, { fontSize: 9, color: muted, align: 'right' })
-    drawThaiText(doc, t('output.pdf.status', { status: t(`status.${project.status}`) }), pageWidth - margin, 24, { fontSize: 9, color: muted, align: 'right' })
-    y = 50
-
-    const summaryText = t('output.pdf.dataSummary', {
-      title: project.title,
-      platform: list(project.platform),
-      genre: list(project.genre),
-      audience: value(project.target_audience, t('output.pdf.definedAudience')),
-      ads: String(adPlacements.length),
-      iap: String(iapItems.length),
-    })
-    const summaryLines = wrapThaiText(summaryText, 108, 9, false)
-    const lh = lineHeightMm()
-    const summaryCardHeight = Math.max(50, 18 + summaryLines.length * lh)
-
-    card(margin, y, 118, summaryCardHeight)
-    drawThaiText(doc, t('output.pdf.summary'), margin + 5, y + 9, { fontSize: 15, bold: true, color: ink })
-    const oldY = y
-    y += 15
-    paragraph(summaryText, margin + 5, 108, 9)
-
-    y = oldY
-    card(138, y, 58, summaryCardHeight)
-    drawThaiText(doc, t('output.pdf.revenueMix'), 143, y + 9, { fontSize: 13, bold: true, color: ink })
-    drawThaiText(doc, `Ads ${pdfAdPercent}%`, 143, y + 22, { fontSize: 9, bold: true, color: ink })
-    drawThaiText(doc, `IAP ${pdfIapPercent}%`, 191, y + 22, { fontSize: 9, bold: true, color: ink, align: 'right' })
-    doc.setFillColor(236, 231, 224)
-    doc.roundedRect(143, y + 26, 48, 5, 2, 2, 'F')
-    doc.setFillColor(orange[0], orange[1], orange[2])
-    doc.roundedRect(143, y + 26, Math.max(2, 48 * pdfAdPercent / 100), 5, 2, 2, 'F')
-    drawThaiText(doc, t('output.pdf.riskScore', { level: riskLabel, score: String(riskScore) }), 143, y + 38, { fontSize: 8.5, color: muted })
-    drawThaiText(doc, t('output.pdf.store', { store: value(iapConfig?.store?.replace('_', ' '), t('output.pdf.notConfigured')) }), 143, y + 43, { fontSize: 8.5, color: muted })
-
-    y = oldY + summaryCardHeight + 10
-    title(t('output.pdf.projectContext'))
-
-    const contextColW = [40, 50, 52, 40]
-    const contextColX = [margin + 5, margin + 5 + 40, margin + 5 + 40 + 50, margin + 5 + 40 + 50 + 52]
-    const lc1 = wrapThaiText(list(project.genre), contextColW[0] - 6, 9, false).length
-    const lc2 = wrapThaiText(list(project.platform), contextColW[1] - 6, 9, false).length
-    const lc3 = wrapThaiText(value(project.target_audience), contextColW[2] - 6, 9, false).length
-    const lc4 = wrapThaiText(value(project.session_length), contextColW[3] - 6, 9, false).length
-    const contextCardHeight = Math.max(30, 16 + Math.max(lc1, lc2, lc3, lc4) * lh)
-
-    const contextTop = y
-    card(margin, contextTop, contentWidth, contextCardHeight)
-    keyValue(t('output.pdf.genre'), list(project.genre), contextColX[0], contextTop + 9, contextColW[0] - 6)
-    keyValue(t('output.pdf.platform'), list(project.platform), contextColX[1], contextTop + 9, contextColW[1] - 6)
-    keyValue(t('output.pdf.audience'), value(project.target_audience), contextColX[2], contextTop + 9, contextColW[2] - 6)
-    keyValue(t('output.pdf.session'), value(project.session_length), contextColX[3], contextTop + 9, contextColW[3] - 6)
-
-    y = contextTop + contextCardHeight + 8
-    title(t('output.pdf.coreLoop'))
-    paragraph(value(project.core_mechanic, t('output.pdf.noCoreLoop')), margin, contentWidth, 10)
-    y += 5
-
-    title(t('output.pdf.monetizationFlow'))
-    const flowTop = y
-    const stages = [t('output.stages.entry'), t('output.stages.gameplay'), t('output.stages.outcome'), t('output.stages.meta')]
-    stages.forEach((stage, index) => {
-      const cx = margin + 18 + (index * 48.6)
-      const cy = flowTop + 10
-
-      doc.setFillColor(255, 255, 255)
-      doc.setDrawColor(lineColor[0], lineColor[1], lineColor[2])
-      doc.circle(cx, cy, 8, 'FD')
-
-      drawThaiText(doc, String(index + 1), cx, cy, { fontSize: 10, bold: true, color: orange, align: 'center', baseline: 'middle' })
-      drawThaiText(doc, stage, cx, cy + 16, { fontSize: 10, color: ink, align: 'center' })
-
-      if (index < stages.length - 1) {
-        const nextCx = margin + 18 + ((index + 1) * 48.6)
-        doc.setDrawColor(orange[0], orange[1], orange[2])
-        doc.line(cx + 12, cy, nextCx - 14, cy)
-        doc.line(nextCx - 17, cy - 2.5, nextCx - 14, cy)
-        doc.line(nextCx - 17, cy + 2.5, nextCx - 14, cy)
-      }
-    })
-    y = flowTop + 34
-
-    title(t('output.pdf.adsStrategy'))
-    table(
-      [t('output.pdf.type'), t('output.pdf.triggerMoment'), t('output.pdf.frequencyCap'), t('output.pdf.notes')],
-      adPlacements.map((placement) => [
-        placement.placement_type,
-        value(placement.trigger_point, t('output.pdf.noTriggerSet')),
-        placement.frequency_cap == null ? t('output.pdf.missing') : t('output.pdf.perSession', { count: String(placement.frequency_cap) }),
-        value(placement.notes, t('output.pdf.noNotes')),
-      ]),
-      [30, 62, 35, 55]
-    )
-
-    title(t('output.pdf.iapCatalog'))
-    table(
-      [t('output.pdf.item'), t('output.pdf.type'), t('output.pdf.price'), t('output.pdf.benefitDescription')],
-      iapItems.map((item) => [
-        item.name,
-        item.item_type.replace('_', ' '),
-        money(item.price_usd),
-        value(item.description, t('output.pdf.noBenefit')),
-      ]),
-      [40, 32, 25, 85]
-    )
-
-    title(t('output.pdf.configurationNotes'))
-    table(
-      [t('output.pdf.area'), t('output.pdf.field'), t('output.pdf.value')],
-      [
-        [t('build.ads'), t('output.pdf.adNetwork'), value(adsConfig?.ad_network)],
-        [t('build.ads'), t('output.pdf.revenueModel'), value(adsConfig?.revenue_model)],
-        [t('build.ads'), t('output.pdf.notes'), value(adsConfig?.notes, t('output.pdf.noNotes'))],
-        [t('build.iap'), t('output.pdf.storeField'), value(iapConfig?.store?.replace('_', ' '))],
-        [t('build.iap'), t('output.pdf.currency'), value(iapConfig?.currency)],
-        [t('build.iap'), t('output.pdf.notes'), value(iapConfig?.notes, t('output.pdf.noNotes'))],
-      ],
-      [30, 50, 102]
-    )
-
-    title(t('output.pdf.caseForEthics'))
-    const ethicsRows = [
-      [t('output.pdf.frequencyCap'), missingCaps === 0 ? t('output.pdf.pass') : t('output.pdf.capsNeed', { count: String(missingCaps) }), t('output.pdf.capsExplanation')],
-      [t('output.pdf.optionalValue'), t('output.pdf.pass'), t('output.pdf.optionalValueExplanation')],
-      [t('output.pdf.priceClarity'), iapItems.every((item) => item.price_usd != null && item.description) ? t('output.pdf.pass') : t('output.pdf.needsReview'), t('output.pdf.priceClarityExplanation')],
-      [t('output.pdf.pressureLevel'), riskLabel, t('output.pdf.pressureExplanation')],
-    ]
-    table([t('output.pdf.check'), t('output.pdf.result'), t('output.pdf.explanation')], ethicsRows, [40, 32, 110])
-
-    title(t('output.pdf.instructorReview'))
-    table(
-      [t('output.pdf.field'), t('output.pdf.value')],
-      [
-        [t('output.pdf.grade'), project.grade == null ? t('output.pdf.notGraded') : `${project.grade}/100`],
-        [t('output.pdf.comment'), value(project.instructor_comment, t('output.pdf.noInstructorComment'))],
-        [t('output.pdf.submittedAt'), value(project.submitted_at, t('output.pdf.notSubmitted'))],
-        [t('output.pdf.gradedAt'), value(project.graded_at, t('output.pdf.notGraded'))],
-      ],
-      [50, 132]
-    )
-
-    footer()
-    doc.save(`emd-${safeFileName}-data.pdf`)
+    setPrintMode(mode)
   }
 
   if (loading) {
@@ -611,11 +297,19 @@ export default function OutputPage() {
   const adPercent = adPlacements.length || iapItems.length ? Math.round((adPlacements.length / Math.max(1, adPlacements.length + iapItems.length)) * 100) : 0
   const iapPercent = adPlacements.length || iapItems.length ? 100 - adPercent : 0
 
+  const totalItems = adPlacements.length + iapItems.length
+  const pdfAdPercent = totalItems ? Math.round((adPlacements.length / totalItems) * 100) : 0
+  const pdfIapPercent = totalItems ? 100 - pdfAdPercent : 0
+  const missingCaps = adPlacements.filter((placement) => placement.frequency_cap == null).length
+  const interstitials = adPlacements.filter((placement) => placement.placement_type === 'interstitial').length
+  const riskScore = Math.min(10, missingCaps * 3 + interstitials * 2 + Math.max(0, iapItems.length - 3))
+  const riskLabel = riskScore >= 7 ? t('build.levels.high') : riskScore >= 4 ? t('build.levels.medium') : t('build.levels.low')
+  const exportDate = new Date().toISOString().slice(0, 10)
+
   return (
     <PageContainer>
-      <div className="no-print">
-        <StepIndicator current={4} />
-      </div>
+      <div className="no-print space-y-8">
+      <StepIndicator current={4} />
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -778,6 +472,27 @@ export default function OutputPage() {
           </div>
         </aside>
       </div>
+      </div>
+
+      {printMode && project && createPortal(
+        <OutputPrintSheet
+          mode={printMode}
+          project={project}
+          adsConfig={adsConfig}
+          adPlacements={adPlacements}
+          iapItems={iapItems}
+          iapConfig={iapConfig}
+          aiSuggestions={printAiSuggestions}
+          exportDate={exportDate}
+          pdfAdPercent={pdfAdPercent}
+          pdfIapPercent={pdfIapPercent}
+          riskScore={riskScore}
+          riskLabel={riskLabel}
+          missingCaps={missingCaps}
+          interstitials={interstitials}
+        />,
+        document.body
+      )}
     </PageContainer>
   )
 }

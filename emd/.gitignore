@@ -30,3 +30,10 @@ dist-ssr
 
 .vercel
 .env*
+
+# Vite dependency pre-bundling cache
+.vite/
+
+# Local scratch: python venv + video frame extraction (not part of the app)
+.codex-python-video/
+.codex-video-frames/

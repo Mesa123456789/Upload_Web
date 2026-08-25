@@ -26,6 +26,7 @@ const demoStudents: Profile[] = [
     student_code: 'DEMO-001',
     major: 'Game Design',
     year: 3,
+    is_active: true,
     created_at: now,
     updated_at: now,
   },

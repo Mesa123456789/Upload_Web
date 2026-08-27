@@ -1,9 +1,10 @@
-import { useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import { FolderPlus } from 'lucide-react'
 import { useAuth } from '../../auth/context/useAuth'
 import { useI18n } from '../../../i18n/I18nProvider'
 import PageContainer from '../../../app/layout/PageContainer'
 import { Skeleton } from '../../../shared/components/Skeleton'
+import CreateProjectCourseDialog from '../components/CreateProjectCourseDialog'
 import StudentProjectsPanel from '../components/StudentProjectsPanel'
 import { useStudentCourseProjects } from '../hooks/useStudentCourseProjects'
 
@@ -31,7 +32,7 @@ function ProjectsSkeleton() {
 export default function StudentProjectsPage() {
   const { user } = useAuth()
   const { t } = useI18n()
-  const navigate = useNavigate()
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const {
     courseData,
     visibleCourseData,
@@ -41,7 +42,7 @@ export default function StudentProjectsPage() {
     loading,
     error,
   } = useStudentCourseProjects(user?.id)
-  const addProjectCourseId = selectedCourse?.id ?? courseData[0]?.course.id
+  const addProjectDisabled = courseData.length === 0
 
   if (loading) return <ProjectsSkeleton />
 
@@ -58,15 +59,21 @@ export default function StudentProjectsPage() {
 
       <div className="flex justify-end">
         <button
-          onClick={() => addProjectCourseId && navigate(`/project/new?courseId=${addProjectCourseId}`)}
-          disabled={!addProjectCourseId}
+          onClick={() => setCreateDialogOpen(true)}
+          disabled={addProjectDisabled}
           className="ds-button ds-button-secondary min-w-[150px]"
-          title={!addProjectCourseId ? t('common.noCoursesYet') : undefined}
+          title={addProjectDisabled ? t('common.noCoursesYet') : undefined}
         >
           <FolderPlus className="h-4 w-4" />
           {t('dashboard.student.addProject')}
         </button>
       </div>
+
+      <CreateProjectCourseDialog
+        courses={courseData.map(({ course }) => course)}
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+      />
     </PageContainer>
   )
 }

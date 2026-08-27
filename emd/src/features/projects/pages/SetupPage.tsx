@@ -48,6 +48,7 @@ export default function SetupPage() {
   const { id: projectId } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const courseIdFromQuery = searchParams.get('courseId')
+  const isMissingCourseForNewProject = !projectId && !courseIdFromQuery
   const navigate = useNavigate()
   const { user } = useAuth()
   const { t } = useI18n()
@@ -109,11 +110,13 @@ export default function SetupPage() {
         } catch (err) {
           setError(err instanceof Error ? err.message : t('setup.loadFailed'))
         }
+      } else if (!courseIdFromQuery) {
+        setError(t('setup.courseMissing'))
       }
       setLoading(false)
     }
     load()
-  }, [projectId])
+  }, [courseIdFromQuery, projectId, t])
 
   function toggleArrayItem(arr: string[], item: string): string[] {
     return arr.includes(item) ? arr.filter((value) => value !== item) : [...arr, item]
@@ -539,14 +542,14 @@ export default function SetupPage() {
             <button
               type="button"
               onClick={handleSaveDraft}
-              disabled={saving}
+              disabled={saving || isMissingCourseForNewProject}
               className="flex-1 rounded-lg border border-line px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
             >
               {saving ? t('common.saving') : t('setup.saveDraft')}
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || isMissingCourseForNewProject}
               className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white transition hover:bg-primary-light disabled:opacity-50"
             >
               {saving ? t('common.saving') : t('setup.continue')}

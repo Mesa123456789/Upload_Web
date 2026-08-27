@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, type Transition } from 'framer-motion'
 import {
@@ -13,7 +14,10 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '../../features/auth/context/useAuth'
+import { listStudentCourses } from '../../features/courses/services/courses.service'
+import CreateProjectCourseDialog from '../../features/student/components/CreateProjectCourseDialog'
 import { useI18n } from '../../i18n/I18nProvider'
+import type { Course } from '../../lib/database.types'
 import CollapsedTooltip from './SidebarTooltip'
 import { useIsMobile } from './useIsMobile'
 
@@ -43,11 +47,39 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const location = useLocation()
   const isMobile = useIsMobile()
   const isInstructor = profile?.role === 'instructor'
+  const [studentCourses, setStudentCourses] = useState<Course[]>([])
+  const [studentCoursesLoading, setStudentCoursesLoading] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const width = isOpen ? sidebarExpandedWidth : sidebarCollapsedWidth
 
   const primaryAction = isInstructor
     ? { label: t('instructorCourses.createNew'), to: '/instructor/courses' }
     : { label: t('projects.createNew'), to: '/project/new' }
+
+  useEffect(() => {
+    if (isInstructor || !profile) {
+      setStudentCourses([])
+      return
+    }
+
+    let cancelled = false
+    setStudentCoursesLoading(true)
+
+    listStudentCourses()
+      .then((courses) => {
+        if (!cancelled) setStudentCourses(courses)
+      })
+      .catch(() => {
+        if (!cancelled) setStudentCourses([])
+      })
+      .finally(() => {
+        if (!cancelled) setStudentCoursesLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [isInstructor, profile])
 
   const roleItems: SidebarNavItem[] = isInstructor
     ? [
@@ -153,6 +185,22 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
     </AnimatePresence>
   )
 
+  const handlePrimaryAction = () => {
+    if (isMobile) setIsOpen(false)
+
+    if (isInstructor) {
+      navigate(primaryAction.to)
+      return
+    }
+
+    if (studentCourses.length === 0) {
+      navigate('/join')
+      return
+    }
+
+    setCreateDialogOpen(true)
+  }
+
   const displayName = profile?.display_name ?? profile?.email ?? t('roles.guest')
   const code = profile?.student_code ?? (profile?.role ? t(`roles.${profile.role}`) : 'EMD')
   const initials = displayName
@@ -230,7 +278,8 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           <CollapsedTooltip label={primaryAction.label} enabled={!isOpen}>
             <button
               type="button"
-              onClick={() => { if (isMobile) setIsOpen(false); navigate(primaryAction.to) }}
+              onClick={handlePrimaryAction}
+              disabled={!isInstructor && studentCoursesLoading}
               className="flex h-11 w-full min-w-0 items-center overflow-hidden rounded-full bg-[#facc15] text-sm font-black text-[#302226] shadow-[0_12px_28px_rgba(250,204,21,0.18)] transition hover:bg-[#f4bd0a] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F48E2E]/35"
               aria-label={primaryAction.label}
             >
@@ -283,6 +332,11 @@ export default function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         </CollapsedTooltip>
       </div>
       </motion.aside>
+      <CreateProjectCourseDialog
+        courses={studentCourses}
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+      />
     </>
   )
 }

@@ -5,6 +5,7 @@ import { useI18n } from '../../../../i18n/I18nProvider'
 import { notify } from '../../../../shared/lib/toast'
 import { useChat } from '../../context/ChatContext'
 import { sendChatMessage, summarizeChat, saveSuggestions, type ChatMessage } from '../../services/chat.service'
+import { SELECTABLE_PROVIDERS } from '../../services/providers'
 
 // Three bouncing dots shown inside the AI bubble while waiting for the first
 // streamed token (after the message is sent, before any text has arrived).
@@ -106,7 +107,9 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
     return getDefaultPanelPosition(size.width, size.height)
   })
 
-  const isDevMode = import.meta.env.DEV
+  // What the selector visually shows/sends: the user's explicit pick, or the first entry
+  // (Gemini) when they haven't touched it yet — see the <select> below.
+  const activeProviderId = selectedProvider ?? SELECTABLE_PROVIDERS[0].id
 
   const hasAiReplied = messages.some((m) => m.role === 'model' && m.text !== '')
   const hasProjectId = Boolean(projectId)
@@ -331,20 +334,26 @@ export default function ChatAssistant({ projectId }: ChatAssistantProps) {
             <button onClick={() => setChatOpen(false)} style={styles.closeBtn} aria-label={t('chat.close')}>×</button>
           </div>
 
-          {/* Dev switcher */}
-          {isDevMode && (
-            <div style={styles.devSwitcher}>
-              <span style={styles.devLabel}>{t('chat.devMode')}</span>
-              <select
-                value={selectedProvider ?? ''}
-                onChange={(e) => setSelectedProvider(e.target.value || null)}
-                style={styles.devSelect}
-              >
-                <option value="">{t('chat.defaultProvider')}</option>
-                <option value="gemini">Gemini</option>
-                <option value="owl-alpha">Owl Alpha</option>
-              </select>
-            </div>
+          {/* Model selector — visible to all users, not just dev mode */}
+          <div style={styles.modelSwitcher}>
+            <span style={styles.modelLabel}>{t('chat.modelLabel')}</span>
+            <select
+              value={activeProviderId}
+              onChange={(e) => setSelectedProvider(e.target.value)}
+              style={styles.modelSelect}
+              aria-label={t('chat.modelLabel')}
+            >
+              {SELECTABLE_PROVIDERS.map((p) => (
+                <option key={p.id} value={p.id} title={p.description}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Gemma runs noticeably slower than Gemini — flag it inline, non-blocking */}
+          {activeProviderId === 'gemma' && (
+            <div style={styles.gemmaNote}>{t('chat.gemmaSlowNote')}</div>
           )}
 
           {/* Message list */}
@@ -599,24 +608,32 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(255,255,255,0.25)',
     color: '#ffffff',
   },
-  devSwitcher: {
+  modelSwitcher: {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     padding: '6px 16px',
-    background: '#fef3c7',
-    borderBottom: '1px solid #fde68a',
+    background: '#f8fafc',
+    borderBottom: '1px solid #e5e7eb',
     flexShrink: 0,
   },
-  devLabel: { fontSize: 11, fontWeight: 700, color: '#92400e' },
-  devSelect: {
+  modelLabel: { fontSize: 11, fontWeight: 700, color: '#64748b' },
+  modelSelect: {
     flex: 1,
     fontSize: 12,
     padding: '3px 6px',
     borderRadius: 6,
-    border: '1px solid #fde68a',
+    border: '1px solid #e5e7eb',
     background: '#fff',
-    color: '#1c1917',
+    color: '#1e293b',
+  },
+  gemmaNote: {
+    padding: '4px 16px 8px',
+    fontSize: 11,
+    color: '#9a3412',
+    background: '#fff7ed',
+    borderBottom: '1px solid #fde68a',
+    flexShrink: 0,
   },
   closeBtn: {
     background: 'transparent',

@@ -1,6 +1,26 @@
-import { getProvider } from './lib/ai-provider.js'
+import { getProvider, getProviderChain, isRetryableProviderError } from './lib/ai-provider.js'
+import type { AiProvider, GenerateParams, GenerateResult } from './lib/ai-provider.js'
 
 type ResponseLanguage = 'th' | 'en'
+
+// Try each provider in order, moving to the next only on a quota/overload error.
+// Any other error (bad request, invalid config) throws immediately.
+async function generateWithFallback(
+  providers: AiProvider[],
+  params: GenerateParams,
+): Promise<GenerateResult> {
+  let lastError: any = null
+  for (const provider of providers) {
+    try {
+      return await provider.generate(params)
+    } catch (err: any) {
+      lastError = err
+      if (!isRetryableProviderError(err)) throw err
+      console.warn(`[chat] provider "${provider.name}" hit a quota/overload error, trying next provider in chain`)
+    }
+  }
+  throw lastError ?? new Error('AI ตอบไม่ได้ตอนนี้')
+}
 
 function buildLanguageInstruction(language: ResponseLanguage, forSummarize = false): string {
   const categoryNote = forSummarize
@@ -203,7 +223,11 @@ export default async function handler(req: any, res: any) {
     }
 
     const responseLanguage: ResponseLanguage = language === 'en' ? 'en' : 'th'
-    const provider = await getProvider(providerOverride)
+    // With an explicit override (the model picked in the chat UI), use just that one provider
+    // (no chain fallback). Otherwise use the full provider-level fallback chain.
+    const providers: AiProvider[] = providerOverride
+      ? [await getProvider(providerOverride)]
+      : await getProviderChain()
     const trimmedHistory = history.slice(-8)
 
     // ── โหมดสรุป — ไม่ stream, รับ JSON ก้อนเดียว ──
@@ -213,7 +237,7 @@ export default async function handler(req: any, res: any) {
         { role: 'user', parts: [{ text: message }] },
       ]
       const summarizePrompt = buildSummarizePrompt(responseLanguage)
-      let result = await provider.generate({
+      let result = await generateWithFallback(providers, {
         contents: summarizeContents,
         systemInstruction: summarizePrompt,
         temperature: 0.3,
@@ -225,7 +249,7 @@ export default async function handler(req: any, res: any) {
       const looksEmpty = result.text.trim() === '[]' || result.text.trim() === ''
       if (suggestions.length === 0 && !looksEmpty) {
         console.warn(`[chat] summarize parse ล้มเหลวจาก ${result.providerName} — retry 1 ครั้ง. raw: ${result.text.slice(0, 200)}`)
-        result = await provider.generate({
+        result = await generateWithFallback(providers, {
           contents: summarizeContents,
           systemInstruction: summarizePrompt + '\n\nย้ำ: ตอบเป็น JSON array เท่านั้น ห้ามมีคำอธิบายอื่นปนมา',
           temperature: 0.2,
@@ -256,27 +280,55 @@ export default async function handler(req: any, res: any) {
       maxOutputTokens: 1500,
     }
 
-    // ── stream mode: provider รองรับ generateStream ──
-    if (provider.generateStream) {
+    // ── stream mode: provider แรกในเชนรองรับ generateStream ──
+    if (providers[0].generateStream) {
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache')
       res.setHeader('Connection', 'keep-alive')
 
-      try {
-        for await (const chunk of provider.generateStream(generateParams)) {
-          const payload = chunk.done
-            ? JSON.stringify({ done: true, usage: chunk.usage, provider: provider.name })
-            : JSON.stringify({ text: chunk.text })
+      let wroteContent = false // once true, we've already sent partial text — can't switch providers anymore
+      let finished = false
+      let lastError: any = null
 
-          // ← encode เป็น Buffer ก่อน write กัน ByteString error
-          res.write(Buffer.from(`data: ${payload}\n\n`, 'utf-8'))
-        }
-      } catch (streamErr: any) {
-        console.error('[chat] stream error:', streamErr?.message)
-        console.error('[chat] stream error STACK:', streamErr?.stack)
-
+      for (const provider of providers) {
         try {
-          res.write(Buffer.from(`data: ${JSON.stringify({ done: true, error: streamErr?.message ?? 'AI ตอบไม่ได้ตอนนี้' })}\n\n`, 'utf-8'))
+          if (provider.generateStream) {
+            for await (const chunk of provider.generateStream(generateParams)) {
+              const payload = chunk.done
+                ? JSON.stringify({ done: true, usage: chunk.usage, provider: provider.name })
+                : JSON.stringify({ text: chunk.text })
+
+              if (!chunk.done) wroteContent = true
+              // ← encode เป็น Buffer ก่อน write กัน ByteString error
+              res.write(Buffer.from(`data: ${payload}\n\n`, 'utf-8'))
+              if (chunk.done) finished = true
+            }
+          } else {
+            // provider นี้ไม่มี generateStream → ยิง generate() ครั้งเดียวแล้วส่งเป็น chunk เดียว
+            const result = await provider.generate(generateParams)
+            wroteContent = true
+            res.write(Buffer.from(`data: ${JSON.stringify({ text: result.text })}\n\n`, 'utf-8'))
+            res.write(Buffer.from(`data: ${JSON.stringify({ done: true, usage: result.usage, provider: result.providerName })}\n\n`, 'utf-8'))
+            finished = true
+          }
+          if (finished) break
+        } catch (streamErr: any) {
+          lastError = streamErr
+          console.error(`[chat] stream error from provider "${provider.name}":`, streamErr?.message)
+          console.error('[chat] stream error STACK:', streamErr?.stack)
+
+          // Only safe to try the next provider if nothing has been streamed to the client yet —
+          // once partial text is sent, switching providers mid-reply would corrupt the output.
+          if (wroteContent || !isRetryableProviderError(streamErr)) {
+            break
+          }
+          console.warn(`[chat] provider "${provider.name}" failed before sending content, trying next provider in chain`)
+        }
+      }
+
+      if (!finished) {
+        try {
+          res.write(Buffer.from(`data: ${JSON.stringify({ done: true, error: lastError?.message ?? 'AI ตอบไม่ได้ตอนนี้' })}\n\n`, 'utf-8'))
         } catch (writeErr: any) {
           console.error('[chat] WRITE error:', writeErr?.message)
         }
@@ -286,8 +338,8 @@ export default async function handler(req: any, res: any) {
       return
     }
 
-    // ── fallback: provider ไม่มี generateStream → JSON ปกติ ──
-    const result = await provider.generate(generateParams)
+    // ── fallback: provider แรกในเชนไม่มี generateStream → JSON ปกติ ──
+    const result = await generateWithFallback(providers, generateParams)
     return res.status(200).json({
       reply: result.text,
       usage: result.usage,

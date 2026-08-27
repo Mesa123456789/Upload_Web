@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FolderPlus, Plus } from 'lucide-react'
 import { useAuth } from '../../auth/context/useAuth'
@@ -5,6 +6,7 @@ import { useI18n } from '../../../i18n/I18nProvider'
 import PageContainer from '../../../app/layout/PageContainer'
 import { Skeleton } from '../../../shared/components/Skeleton'
 import StudentBento from '../../../components/animata/bento-grid/student'
+import CreateProjectCourseDialog from '../components/CreateProjectCourseDialog'
 import StudentProjectsPanel from '../components/StudentProjectsPanel'
 import { useStudentCourseProjects } from '../hooks/useStudentCourseProjects'
 
@@ -34,6 +36,7 @@ export default function StudentDashboardPage() {
   const { user } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const {
     courseData,
     visibleCourseData,
@@ -51,7 +54,7 @@ export default function StudentDashboardPage() {
   const gradeAverage = gradedProjects.length > 0
     ? Math.round(gradedProjects.reduce((total, project) => total + (project.grade ?? 0), 0) / gradedProjects.length)
     : null
-  const addProjectCourseId = selectedCourse?.id ?? courseData[0]?.course.id
+  const addProjectDisabled = courseData.length === 0
 
   if (loading) return <DashboardSkeleton />
 
@@ -59,10 +62,10 @@ export default function StudentDashboardPage() {
     <PageContainer>
       <div className="mb-6 flex flex-wrap justify-end gap-3 sm:mb-8">
         <button
-          onClick={() => addProjectCourseId && navigate(`/project/new?courseId=${addProjectCourseId}`)}
-          disabled={!addProjectCourseId}
+          onClick={() => setCreateDialogOpen(true)}
+          disabled={addProjectDisabled}
           className="ds-button ds-button-secondary min-w-[150px]"
-          title={!addProjectCourseId ? t('common.noCoursesYet') : undefined}
+          title={addProjectDisabled ? t('common.noCoursesYet') : undefined}
         >
           <FolderPlus className="h-4 w-4" />
           {t('dashboard.student.addProject')}
@@ -90,6 +93,12 @@ export default function StudentDashboardPage() {
         filterCourseId={filterCourseId}
         onFilterCourseChange={setFilterCourseId}
         error={error}
+      />
+
+      <CreateProjectCourseDialog
+        courses={courseData.map(({ course }) => course)}
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
       />
     </PageContainer>
   )

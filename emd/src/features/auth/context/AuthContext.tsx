@@ -12,7 +12,7 @@ const previewProfile: Profile = {
   role: 'instructor',
   contact_info: null,
   student_code: '662110157',
-  major: null,
+  major: 'Software Engineering',
   year: null,
   is_active: true,
   created_at: new Date().toISOString(),

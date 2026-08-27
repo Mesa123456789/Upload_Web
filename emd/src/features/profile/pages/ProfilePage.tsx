@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/context/useAuth'
 import { updateProfile } from '../services/profiles.service'
 import { supabase } from '../../../lib/supabase'
@@ -7,11 +7,14 @@ import PageContainer from '../../../app/layout/PageContainer'
 import Card from '../../../shared/components/Card'
 import { Skeleton, SkeletonCard } from '../../../shared/components/Skeleton'
 import { useI18n } from '../../../i18n/I18nProvider'
+import { isProfileComplete } from '../utils/profileCompletion'
 
 export default function ProfilePage() {
   const { user, profile, setProfile } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
+  const location = useLocation()
+  const fromPath = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
 
   // Local form state — pre-filled from profile once it loads
   const [displayName, setDisplayName] = useState('')
@@ -38,13 +41,25 @@ export default function ProfilePage() {
     e.preventDefault()
     if (!user || !profile) return
 
+    if (!displayName.trim()) {
+      setSaveError(t('profile.displayNameRequired'))
+      return
+    }
+
+    if (!major.trim()) {
+      setSaveError(t('profile.majorRequired'))
+      return
+    }
+
     setSaving(true)
     setSaveError(null)
     setSaveSuccess(false)
 
     try {
+      const wasIncomplete = !isProfileComplete(profile)
       const updates: Parameters<typeof updateProfile>[1] = {
-        display_name: displayName.trim() || null,
+        display_name: displayName.trim(),
+        major: major.trim(),
       }
 
       if (profile.role === 'instructor') {
@@ -52,7 +67,6 @@ export default function ProfilePage() {
       } else {
         // Student-specific fields
         updates.student_code = studentCode.trim() || null
-        updates.major = major.trim() || null
         updates.year = year ? parseInt(year) : null
       }
 
@@ -64,6 +78,13 @@ export default function ProfilePage() {
 
       // Clear success banner after 3 seconds
       setTimeout(() => setSaveSuccess(false), 3000)
+
+      if (wasIncomplete && isProfileComplete(updated)) {
+        const nextPath = fromPath?.pathname && fromPath.pathname !== '/profile'
+          ? `${fromPath.pathname}${fromPath.search ?? ''}`
+          : '/'
+        navigate(nextPath, { replace: true })
+      }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : t('profile.saveFailed'))
     } finally {
@@ -93,6 +114,7 @@ export default function ProfilePage() {
   }
 
   const isInstructor = profile.role === 'instructor'
+  const needsCompletion = !isProfileComplete(profile)
 
   const inputCls = 'ds-input'
 
@@ -112,6 +134,12 @@ export default function ProfilePage() {
         {saveError && (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl p-4 mb-6 text-sm">
             {saveError}
+          </div>
+        )}
+
+        {needsCompletion && !saveError && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {t('profile.completeRequired')}
           </div>
         )}
 
@@ -153,6 +181,21 @@ export default function ProfilePage() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t('profile.displayNamePlaceholder')}
+                required
+                className={inputCls}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                {t('profile.major')}
+              </label>
+              <input
+                type="text"
+                value={major}
+                onChange={(e) => setMajor(e.target.value)}
+                placeholder={t('profile.majorPlaceholder')}
+                required
                 className={inputCls}
               />
             </div>
@@ -188,19 +231,6 @@ export default function ProfilePage() {
                     value={studentCode}
                     onChange={(e) => setStudentCode(e.target.value)}
                     placeholder={t('profile.studentIdPlaceholder')}
-                    className={inputCls}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    {t('profile.major')}
-                  </label>
-                  <input
-                    type="text"
-                    value={major}
-                    onChange={(e) => setMajor(e.target.value)}
-                    placeholder={t('profile.majorPlaceholder')}
                     className={inputCls}
                   />
                 </div>
